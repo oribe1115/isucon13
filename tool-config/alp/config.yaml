@@ -1,0 +1,47 @@
+---
+sort: sum                      # max|min|avg|sum|count|uri|method|max-body|min-body|avg-body|sum-body|p1|p50|p99|stddev
+reverse: true                   # boolean
+query_string: true              # boolean
+output: count,5xx,4xx,method,uri,min,max,sum,avg,p99                    # string(comma separated)
+
+# 必ず`^`と`&`を使った完全一致の記述を行うこと
+matching_groups:            # array
+  - ^/initialize$
+
+
+# file:                       # string
+# query_string_ignore_values: # boolean
+# decode_uri:                 # boolean
+# format:                     # string
+# limit:                      # 5000
+# noheaders:                  # boolean
+# show_footers:               # boolean
+# filters:                    # string
+# pos_file:                   # string
+# nosave_pos:                 # boolean
+# percentiles:                # array
+# ltsv:
+#   apptime_label: # apptime
+#   status_label:  # status code
+#   size_label:    # size
+#   method_label:  # method
+#   uri_label:     # uri
+#   time_label:    # time
+# json:
+#   uri_key:           # string
+#   method_key:        # string
+#   time_key:          # string
+#   response_time_key: # string
+#   body_bytes_key:    # string
+#   status_key:        # string
+# regexp:
+#   pattern:              # string
+#   uri_subexp:           # string
+#   method_subexp:        # string
+#   time_subexp:          # string
+#   response_time_subexp: # string
+#   body_bytes_subexp:    # string
+#   status_subexp:        # string
+# pcap:
+#   server_ips:  # array
+#   server_port: # number

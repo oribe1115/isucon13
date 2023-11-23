@@ -1,0 +1,451 @@
+version: '3'
+
+vars:
+  # 問題に応じて設定する必要がある変数
+  USER: isucon
+  BIN_NAME: 
+  BUILD_DIR: 
+  SERVICE_NAME: 
+  ENV_FILE: 
+
+  GIT_REPOSITORY: 
+
+  # 基本共通の変数 -------
+  DB_PATH: /etc/mysql
+  NGINX_PATH: /etc/nginx
+  SYSTEMD_PATH: /etc/systemd/system
+  LIMITS_PATH: /etc/security/limits.d/
+  LIMITS_NAME: isuconlimits.conf
+  SYSCTLD_PATH: /etc/sysctl.d/
+  SYSCTLD_NAME: 100-isucon.conf
+
+  NGINX_LOG: /var/log/nginx/access.log
+  DB_SLOW_LOG: /var/log/mysql/mysql-slow.log
+
+  # http://localhost:19999/netdata.confのdirectories.webで確認可能
+  NETDATA_WEBROOT_PATH: /var/lib/netdata/www/
+  NETDATA_CUSTOM_HTML: ./tool-config/netdata/*
+
+  DISCOCAT_TRIPLE_BACK_QUOTES: ./tool-config/discocat/triple-back-quotes.txt
+  DISCOCAT_TMPFILE: ~/tmp/discocat
+
+dotenv:
+  - "{{.ENV_FILE}}"
+
+tasks:
+  bench:
+    desc: ベンチマーク実行前に全インスタンスで実行する
+    cmds:
+      - task: check-server-id
+      - task: check-commit
+      - task: discocat-now-status
+      - task: delete-logs
+      - task: deploy-conf
+      - task: build
+      - task: restart
+      - task: watch-service-log
+  
+  prof:
+    desc: pprofとfgprofで記録する
+    deps:
+      - task: pprof
+      - task: fgprof
+
+  pprof:
+    # desc: pprofで記録する
+    env:
+      PPROF_TMPDIR: /home/isucon/pprof
+    cmds:
+      - echo "pprof recording..." | discocat
+      - go tool pprof -top http://localhost:6060/debug/pprof/profile
+      - task: discocat-latest-recoding-file
+        vars:
+          PROF_TYPE: pprof
+
+  fgprof:
+    # desc: fgprofで記録する
+    env:
+      PPROF_TMPDIR: /home/isucon/fgprof
+    cmds:
+      - echo "fgprof recording..." | discocat
+      - go tool pprof -top http://localhost:6060/debug/fgprof
+      - task: discocat-latest-recoding-file
+        vars:
+          PROF_TYPE: fgprof
+  
+  prof-check:
+    desc: pprofとfgprofのそれぞれの最新データを確認する
+    deps:
+      - task: pprof-check
+      - task: fgprof-check
+
+  kill-pprof:
+    status:
+      - sh -c "! sudo lsof -sTCP:LISTEN -i :8090"
+    cmd: sudo lsof -sTCP:LISTEN -t -i :8090 | xargs sudo kill -9
+
+  kill-fgprof:
+    status:
+      - sh -c "! sudo lsof -sTCP:LISTEN -i :9090"
+    cmd: sudo lsof -sTCP:LISTEN -t -i :9090 | xargs sudo kill -9
+
+  pprof-check:
+    # desc: pprofでの最新データを確認する
+    deps:
+      - kill-pprof
+    vars:
+      LATEST:
+        sh: ls -rt ~/pprof/ | tail -n 1
+    cmds:
+      - go tool pprof -http=localhost:8090 ~/pprof/{{.LATEST}}
+  
+  fgprof-check:
+    # desc: fgprofでの最新データを確認する
+    deps:
+      - kill-fgprof
+    vars:
+      LATEST:
+        sh: ls -rt ~/fgprof/ | tail -n 1
+    cmds:
+      - go tool pprof -http=localhost:9090 ~/fgprof/{{.LATEST}}
+
+  slow-query:
+    # desc: slow queryの分析結果を出力する
+    cmds:
+      - sudo pt-query-digest {{.DB_SLOW_LOG}} | cut -c -1000
+
+  alp:
+    # desc: alpでの分析結果を出力する
+    cmds:
+      - sudo alp ltsv --file={{.NGINX_LOG}} --config=./tool-config/alp/config.yaml
+
+  discocat-alp:
+    desc: alpの分析結果をDiscordに送る
+    cmds:
+      - task: refresh-discocat-buf
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: cat {{.DISCOCAT_TRIPLE_BACK_QUOTES}}
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: echo "SERVER_ID = $SERVER_ID"
+      - task: task-output-to-discocat-buf
+        vars:
+          TASK_COMMAND: alp
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: cat {{.DISCOCAT_TRIPLE_BACK_QUOTES}}
+      - task: send-buf-to-discord
+  
+  discocat-slow-query:
+    desc: slow queryの分析結果をDiscordに送る
+    cmds:
+      - task: refresh-discocat-buf
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: cat {{.DISCOCAT_TRIPLE_BACK_QUOTES}}
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: echo "SERVER_ID = $SERVER_ID"
+      - task: task-output-to-discocat-buf
+        vars:
+          TASK_COMMAND: slow-query
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: cat {{.DISCOCAT_TRIPLE_BACK_QUOTES}}
+      - task: send-buf-to-discord
+
+  analyze:
+    desc: alp, slow queryの分析結果をDiscordに送信する
+    cmds:
+      - task: discocat-alp
+      - task: discocat-slow-query
+
+  # 各情報の環境変数名が回によって違うので要注意
+  mysql:
+    desc: mysqlに接続する (環境変数名を要確認)
+    cmds:
+      - mysql -h $MYSQL_HOST -P $MYSQL_PORT -u $MYSQL_USER -p$MYSQL_PASS $MYSQL_DBNAME
+
+  setup:
+    # desc: インスタンスを立てたら最初に実行する
+    cmds:
+      - task: install-tools
+      - task: git-setup
+      - task: swap-setup
+  
+  netdata-setup:
+    # desc: netdataの設定ファイルを配置する
+    cmds:
+      - sudo cp {{.NETDATA_CUSTOM_HTML}} {{.NETDATA_WEBROOT_PATH}}
+
+  get-conf:
+    # desc: 設定ファイルを取得してgit管理下に配置する
+    cmds:
+      - task: check-server-id
+      - task: get-db-conf
+      - task: get-nginx-conf
+      - task: get-service-file
+      - task: get-env-file
+      # - task: get-kernel-file
+  
+  # 最初のインスタンスで実装をgitリポジトリに入れるために実行する
+  gitrepo-1st:
+    cmds:
+      - git config --global init.defaultBranch main
+      - git init
+      - git remote add origin {{.GIT_REPOSITORY}}
+      - git pull origin main
+      - git branch -m main
+      - git branch --set-upstream-to=origin/main main
+      - echo "Setup gitignore and variables in Taskfile.yaml"
+  
+  # 2代目の以降のインスタンスでのgitのセットアップ
+  gitrepo-nst:
+    cmds:
+      - git config --global init.defaultBranch main
+      - git init
+      - git remote add origin {{.GIT_REPOSITORY}}
+      - cmd: git pull origin main
+        ignore_error: true
+      - git fetch origin main
+      - git reset --hard FETCH_HEAD
+      - git branch -m main
+      - git branch --set-upstream-to=origin/main main
+
+  # 本番中直接実行しないもの ---------
+  install-tools:
+    vars: 
+      ALP_VERSION: v1.0.21
+      DOOL_VERSION: "1.3.0"
+    cmds:
+      - sudo apt update
+      - sudo apt upgrade
+      - sudo apt install -y percona-toolkit git unzip snapd graphviz tree wget
+      # doolのインストール
+      - wget -O dool.zip https://github.com/scottchiefbaker/dool/archive/refs/tags/v{{.DOOL_VERSION}}.zip
+      - unzip dool.zip
+      - cd dool-{{.DOOL_VERSION}} && python install.py
+      - rm -rf dool.zip dool-{{.DOOL_VERSION}}
+      # alpのインストール
+      - wget https://github.com/tkuchiki/alp/releases/download/{{.ALP_VERSION}}/alp_linux_amd64.zip
+      - unzip alp_linux_amd64.zip
+      - sudo install alp /usr/local/bin/alp
+      - rm -rf alp_linux_amd64.zip alp
+      # netdataのインストール
+      - wget -O /tmp/netdata-kickstart.sh https://my-netdata.io/kickstart.sh && sh /tmp/netdata-kickstart.sh --no-updates --stable-channel --disable-telemetry
+      # discocatのインストール
+      - go install github.com/wan-nyan-wan/discocat@latest
+      - echo "Write ~/.config/discocat.yml"
+
+  git-setup:
+    cmds:
+      - git config --global user.email "isucon@example.com"
+      - git config --global user.name "isucon"
+      # deploykeyの作成
+      - ssh-keygen -t ed25519
+
+  swap-setup:
+    status:
+      - sudo swapon --show | read REPLY
+    cmds:
+      - sudo fallocate -l 2G /swapfile
+      - sudo chmod 600 /swapfile
+      - sudo mkswap /swapfile
+      - sudo swapon /swapfile
+      - echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+  # 環境変数SERVER_IDが登録されているかを検証する
+  # SERVER_IDの値を使うコマンドでは、基本preconditionsで呼ぶようにする
+  check-server-id:
+    preconditions:
+      - sh: '[ $SERVER_ID != "" ]'
+        msg: Env SERVER_ID is unset
+    cmd: echo "SERVER_ID = $SERVER_ID"
+  
+  get-db-conf:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - sudo cp -R {{.DB_PATH}}/* ./$SERVER_ID/etc/mysql
+      - sudo chown {{.USER}} -R ./$SERVER_ID/etc/mysql
+  
+  get-nginx-conf:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - sudo cp -R {{.NGINX_PATH}}/* ./$SERVER_ID/etc/nginx
+      - sudo chown {{.USER}} -R ./$SERVER_ID/etc/nginx
+  
+  get-service-file:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - sudo cp {{.SYSTEMD_PATH}}/{{.SERVICE_NAME}} ./$SERVER_ID/etc/systemd/system/{{.SERVICE_NAME}}
+      - sudo chown {{.USER}} ./$SERVER_ID/etc/systemd/system/{{.SERVICE_NAME}}
+  
+  # OSのバージョンによって環境が違う可能性があるので注意
+  get-kernel-file:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - sudo cp {{.LIMITS_PATH}} ./$SERVER_ID/etc/security/limits.d/{{.LIMITS_NAME}}
+      - sudo cp {{.SYSCTLD_PATH}} ./$SERVER_ID/etc/sysctl.d/{{.SYSCTLD_NAME}}
+  
+  get-env-file:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - cp ~/{{.ENV_FILE}} ./$SERVER_ID/home/isucon/{{.ENV_FILE}}
+  
+  # 設定ファイルの配置
+  deploy-conf:
+    cmds:
+      - task: check-server-id
+      - task: deploy-db-conf
+      - task: deploy-nginx-conf
+      - task: deploy-service-file
+      #- task: deploy-kernel-file
+      - task: deploy-envfile
+
+  deploy-db-conf:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - sudo cp -R ./$SERVER_ID/etc/mysql/* {{.DB_PATH}}
+  
+  deploy-nginx-conf:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - sudo cp -R ./$SERVER_ID/etc/nginx/* {{.NGINX_PATH}}
+
+  deploy-service-file:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - sudo cp ./$SERVER_ID/etc/systemd/system/{{.SERVICE_NAME}} {{.SYSTEMD_PATH}}/{{.SERVICE_NAME}}
+
+  # OSのバージョンによって環境が違う可能性があるので注意
+  deploy-kernel-file:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - sudo cp ./$SERVER_ID/etc/security/limits.d/{{.LIMITS_NAME}} {{.LIMITS_PATH}}
+      - sh -c "ulimit -a >/dev/null"
+      # - sudo cp ./$SERVER_ID/etc/sysctl.d/{{.SYSCTLD_NAME}} {{.SYSCTLD_PATH}}
+      # - sudo sysctl --system >/dev/null
+      
+  deploy-envfile:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - cp ./$SERVER_ID/home/isucon/{{.ENV_FILE}} ~/{{.ENV_FILE}}
+
+  delete-logs:
+    cmds:
+      - sudo rm -f {{.NGINX_LOG}}
+      - sudo rm -f {{.DB_SLOW_LOG}}
+  
+  build:
+    cmds:
+      - cd {{.BUILD_DIR}} && go build -o {{.BIN_NAME}}
+
+  restart:
+    cmds:
+      - sudo systemctl daemon-reload
+      - sudo systemctl restart {{.SERVICE_NAME}}
+      - sudo systemctl restart mysql
+      - sudo systemctl restart nginx
+      # 特定のサーバーでだけ実行したい場合の例
+      # - sh -c "if [ $SERVER_ID = "s1" ]; then (sudo systemctl restart nginx) fi"
+
+  watch-service-log:
+    desc: アプリのログを見る
+    cmds:
+      - sudo journalctl -u {{.SERVICE_NAME}} -n20 -f
+
+  check-commit:
+    cmds:
+      - mkdir -p tmp/check-commit
+      - go run ./tool-config/check-commit/main.go
+  
+  send-buf-to-discord:
+    cmds:
+      - cat {{.DISCOCAT_TMPFILE}} | discocat
+
+  refresh-discocat-buf:
+    cmds:
+      - rm -f {{.DISCOCAT_TMPFILE}}
+      - mkdir -p ~/tmp
+      - touch {{.DISCOCAT_TMPFILE}}
+
+  command-output-to-discocat-buf:
+    requires:
+      vars:
+        - COMMAND
+    cmds:
+      - "{{.COMMAND}} >> {{.DISCOCAT_TMPFILE}}"
+        
+  task-output-to-discocat-buf:
+    requires:
+      vars:
+        - TASK_COMMAND
+    cmds:
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: task -g {{.TASK_COMMAND}}
+  
+  discocat-now-status:
+    preconditions:
+      - task: check-server-id
+    cmds:
+      - task: refresh-discocat-buf
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: echo "----------------------------------------------------------------"
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: cat {{.DISCOCAT_TRIPLE_BACK_QUOTES}}
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: echo "SERVER_ID = $SERVER_ID"
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: git branch --contains=HEAD
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: TZ=JST-9 date
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: echo ""
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: git show -s
+      - task: command-output-to-discocat-buf
+        vars:
+          COMMAND: cat {{.DISCOCAT_TRIPLE_BACK_QUOTES}}
+      - task: send-buf-to-discord
+
+  discocat-latest-recoding-file:
+    requires:
+      vars:
+        - PROF_TYPE
+    vars:
+      LATEST:
+        sh: ls -rt ~/{{.PROF_TYPE}}/ | tail -n 1
+    cmds:
+      - echo "Done. {{.PROF_TYPE}}/{{.LATEST}} created" | discocat
+
+  set-server-id:
+    preconditions:
+      - sh: '[ {{.NEW_SERVER_ID}} != "" ]'
+        msg: e.g. task -g set-server-id NEW_SERVER_ID=s1 
+    cmds:
+      - echo "" >> ~/{{.ENV_FILE}}
+      - echo "SERVER_ID={{.NEW_SERVER_ID}}" >> ~/{{.ENV_FILE}}
+
+  dool:
+    desc: doolを見たい情報のオプション付きで実行する
+    cmds:
+      - dool --cpu --mem  --disk --net --proc --io

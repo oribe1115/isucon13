@@ -1,0 +1,24 @@
+.vscode
+.idea
+
+.*
+!.gitignore
+!.gitkeep
+
+tmp
+pprof
+fgprof
+
+bin
+go
+local
+
+!webapp/go
+
+# 環境変数のファイル名に合わせること
+.env
+!s1/home/isucon/.env
+!s2/home/isucon/.env
+!s3/home/isucon/.env
+!s4/home/isucon/.env
+!s5/home/isucon/.env
