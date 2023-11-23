@@ -8,7 +8,7 @@ vars:
   SERVICE_NAME: 
   ENV_FILE: 
 
-  GIT_REPOSITORY: 
+  GIT_REPOSITORY: git@github.com:oribe1115/isucon13.git
 
   # 基本共通の変数 -------
   DB_PATH: /etc/mysql
