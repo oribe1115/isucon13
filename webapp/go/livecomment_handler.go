@@ -30,12 +30,12 @@ type LivecommentModel struct {
 }
 
 type Livecomment struct {
-	ID         int64      `json:"id"`
-	User       User       `json:"user"`
+	ID         int64      `db:"id" json:"id"`
+	User       User       `db:"user" json:"user"`
 	Livestream Livestream `json:"livestream"`
-	Comment    string     `json:"comment"`
-	Tip        int64      `json:"tip"`
-	CreatedAt  int64      `json:"created_at"`
+	Comment    string     `db:"comment" json:"comment"`
+	Tip        int64      `db:"tip" json:"tip"`
+	CreatedAt  int64      `db:"created_at" json:"created_at"`
 }
 
 type LivecommentReport struct {
@@ -84,7 +84,19 @@ func getLivecommentsHandler(c echo.Context) error {
 	}
 	defer tx.Rollback()
 
-	query := "SELECT * FROM livecomments WHERE livestream_id = ? ORDER BY created_at DESC"
+	query := `
+	SELECT
+	  livecomments.id, livecomments.comment, livecomments.tip, livecomments.created_at,
+	  user.id AS 'user.id', user.name AS 'user.name', user.display_name AS 'user.display_name', user.description AS 'user.description',
+	  usertheme.id AS 'user.theme.id', usertheme.dark_mode AS 'user.theme.dark_mode',
+	  IFNULL(usericons.image_hash, "") AS 'user.icon_hash'
+	  FROM livecomments
+	LEFT JOIN users AS user ON user.id = livecomments.user_id
+	LEFT JOIN themes AS usertheme ON usertheme.user_id  = livecomments.user_id
+	LEFT JOIN icons AS usericons ON usericons.user_id  = livecomments.user_id
+	WHERE livecomments.livestream_id = ?
+	ORDER BY livecomments.created_at DESC
+	`
 	if c.QueryParam("limit") != "" {
 		limit, err := strconv.Atoi(c.QueryParam("limit"))
 		if err != nil {
@@ -92,9 +104,8 @@ func getLivecommentsHandler(c echo.Context) error {
 		}
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-
-	livecommentModels := []LivecommentModel{}
-	err = tx.SelectContext(ctx, &livecommentModels, query, livestreamID)
+	livecomments := []Livecomment{}
+	err = tx.SelectContext(ctx, &livecomments, query, livestreamID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c.JSON(http.StatusOK, []*Livecomment{})
 	}
@@ -102,14 +113,39 @@ func getLivecommentsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livecomments: "+err.Error())
 	}
 
-	livecomments := make([]Livecomment, len(livecommentModels))
-	for i := range livecommentModels {
-		livecomment, err := fillLivecommentResponse(ctx, tx, livecommentModels[i])
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fil livecomments: "+err.Error())
-		}
+	//livestream
+	queryLivestream := `
+	SELECT
+	  livestream.id AS id, livestream.title AS title, livestream.description as description, playlist_url, thumbnail_url, start_at, end_at,
 
-		livecomments[i] = livecomment
+	  livestreamowner.id AS 'owner.id', livestreamowner.name AS 'owner.name', livestreamowner.display_name AS 'owner.display_name', livestreamowner.description AS 'owner.description',
+	  livestreamownertheme.id AS 'owner.theme.id', livestreamownertheme.dark_mode AS 'owner.theme.dark_mode',
+	  IFNULL(livestreamownericons.image_hash, "") AS 'owner.icon_hash'
+
+	  FROM livestreams AS livestream
+	LEFT JOIN users AS livestreamowner ON livestreamowner.id  = livestream.user_id
+	LEFT JOIN themes AS livestreamownertheme ON livestreamownertheme.user_id  = livestream.user_id
+	LEFT JOIN icons AS livestreamownericons ON livestreamownericons.user_id  = livestream.user_id
+	WHERE livestream.id = ?
+	`
+	var livestream Livestream
+	err = tx.GetContext(ctx, &livestream, queryLivestream, livestreamID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livecomments: "+err.Error())
+	}
+	tags, err := getLivestreamTags(ctx, tx, int64(livestreamID))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to getLivestreamTags: "+err.Error())
+	}
+	livestream.Tags = tags
+	if livestream.Owner.IconHash == "" {
+		livestream.Owner.IconHash = fmt.Sprintf("%x", fallbackImageHash)
+	}
+	for i := range livecomments {
+		if livecomments[i].User.IconHash == "" {
+			livecomments[i].User.IconHash = fmt.Sprintf("%x", fallbackImageHash)
+		}
+		livecomments[i].Livestream = livestream
 	}
 
 	if err := tx.Commit(); err != nil {
