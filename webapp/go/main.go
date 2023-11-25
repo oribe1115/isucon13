@@ -237,6 +237,9 @@ func main() {
 	// 課金情報
 	e.GET("/api/payment", GetPaymentResult)
 
+	// 追加したAPI
+	e.POST("/api/register/pdnsutil", postRegisterPdnsutil)
+
 	e.HTTPErrorHandler = errorResponseHandler
 
 	// DB接続

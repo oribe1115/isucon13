@@ -1,16 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/motoki317/sc"
 	"net/http"
+	"os"
 	"os/exec"
 	"time"
+
+	"github.com/motoki317/sc"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/sessions"
@@ -320,8 +323,23 @@ func registerHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert user theme: "+err.Error())
 	}
 
-	if out, err := exec.Command("pdnsutil", "add-record", "u.isucon.dev", req.Name, "A", "0", powerDNSSubdomainAddress).CombinedOutput(); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, string(out)+": "+err.Error())
+	// if out, err := exec.Command("pdnsutil", "add-record", "u.isucon.dev", req.Name, "A", "0", powerDNSSubdomainAddress).CombinedOutput(); err != nil {
+	// 	return echo.NewHTTPError(http.StatusInternalServerError, string(out)+": "+err.Error())
+	// }
+
+	pdnsutilReq := PdnsutilInfo{
+		Name: req.Name,
+	}
+	payload := &bytes.Buffer{}
+	if err := json.NewEncoder(payload).Encode(pdnsutilReq); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to encode PdnsutilInfo: "+err.Error())
+	}
+
+	var dnsServerIP = os.Getenv("DNS_SERVER_IP")
+	res, err := http.Post(fmt.Sprintf("http://%s:8080/api/register/pdnsutil", dnsServerIP), "application/json", payload)
+	defer res.Body.Close()
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to request to exec pdnsutil: "+err.Error())
 	}
 
 	//if err := tx.Commit(); err != nil {
@@ -334,6 +352,26 @@ func registerHandler(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, user)
+}
+
+type PdnsutilInfo struct {
+	Name string `json:"name"`
+}
+
+func postRegisterPdnsutil(c echo.Context) error {
+	// ctx := c.Request().Context()
+	defer c.Request().Body.Close()
+
+	var req PdnsutilInfo
+	if err := json.NewDecoder(c.Request().Body).Decode(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "failed to decode the request body as json")
+	}
+
+	if out, err := exec.Command("pdnsutil", "add-record", "u.isucon.dev", req.Name, "A", "0", powerDNSSubdomainAddress).CombinedOutput(); err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, string(out)+": "+err.Error())
+	}
+
+	return c.NoContent(http.StatusCreated)
 }
 
 // ユーザログインAPI
