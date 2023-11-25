@@ -72,7 +72,7 @@ func getReactionsHandler(c echo.Context) error {
 
 	reactions := make([]Reaction, len(reactionModels))
 	for i := range reactionModels {
-		reaction, err := fillReactionResponse(ctx, tx, reactionModels[i], &livestream)
+		reaction, err := fillReactionResponseImpl(ctx, tx, reactionModels[i], &livestream)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill reaction: "+err.Error())
 		}
@@ -143,7 +143,10 @@ func postReactionHandler(c echo.Context) error {
 	return c.JSON(http.StatusCreated, reaction)
 }
 
-func fillReactionResponse(ctx context.Context, tx *sqlx.Tx, reactionModel ReactionModel, livestreamDefault *Livestream = nil) (Reaction, error) {
+func fillReactionResponse(ctx context.Context, tx *sqlx.Tx, reactionModel ReactionModel) (Reaction, error) {
+	return fillReactionResponseImpl(ctx, tx, reactionModel, nil)
+}
+func fillReactionResponseImpl(ctx context.Context, tx *sqlx.Tx, reactionModel ReactionModel, livestreamDefault *Livestream) (Reaction, error) {
 	userModel, err := userCache.Get(ctx, reactionModel.UserID)
 	if err != nil {
 		return Reaction{}, err
