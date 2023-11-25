@@ -6,7 +6,28 @@ output: count,5xx,4xx,method,uri,min,max,sum,avg,p99                    # string
 
 # 必ず`^`と`&`を使った完全一致の記述を行うこと
 matching_groups:            # array
-  - ^/initialize$
+  - ^/api/initialize$
+  - ^/api/tag$
+  - ^/api/user/[^/]+/theme$
+  - ^/api/livestream$
+  - ^/api/livestream/reservation$
+  - ^/api/livestream/search
+  - ^/api/livestream/[0-9]+$
+  - ^/api/livestream/[0-9]+/livecomment
+  - ^/api/livestream/[0-9]+/reaction
+  - ^/api/livestream/[0-9]+/report
+  - ^/api/livestream/[0-9]+/ngwords
+  - ^/api/livestream/[0-9]+/livecomment/[0-9]+/report
+  - ^/api/livestream/[0-9]+/enter
+  - ^/api/livestream/[0-9]+/exit
+  - ^/api/register$
+  - ^/api/login$
+  - ^/api/user/[^/]+$
+  - ^/api/user/[^/]+/statistics$
+  - ^/api/user/[^/]+/icon$
+  - ^/api/icon$
+  - ^/api/livestream/[0-9]+/statistics$
+  - ^/api/payment$
 
 
 # file:                       # string
