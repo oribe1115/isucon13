@@ -11,6 +11,8 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync/atomic"
+	"time"
 
 	_ "net/http/pprof"
 
@@ -100,7 +102,7 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(10)
+	db.SetMaxOpenConns(100)
 
 	if err := db.Ping(); err != nil {
 		return nil, err
@@ -110,6 +112,10 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 }
 
 func initializeHandler(c echo.Context) error {
+	tmpTime := &time.Time{}
+	*tmpTime = time.Now()
+	benchstart.Store(tmpTime)
+
 	if out, err := exec.Command("../sql/init.sh").CombinedOutput(); err != nil {
 		c.Logger().Warnf("init.sh failed with err=%s", string(out))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
@@ -120,6 +126,10 @@ func initializeHandler(c echo.Context) error {
 		Language: "golang",
 	})
 }
+
+var benchstart atomic.Pointer[time.Time]
+
+const benchtime = (42 + 40 + 60 + 10 + 50) * time.Second
 
 func main() {
 	http.DefaultServeMux.Handle("/debug/fgprof", fgprof.Handler())
@@ -207,6 +217,24 @@ func main() {
 		os.Exit(1)
 	}
 	powerDNSSubdomainAddress = subdomainAddr
+
+	tmpTime := &time.Time{}
+	*tmpTime = time.Now()
+	benchstart.Store(tmpTime)
+	go func() {
+		for {
+			time.Sleep(benchtime + 1*time.Second)
+			//ベンチ中: now <= benchstart+benchtime
+			if time.Now().Add(-benchtime).Before(*benchstart.Load()) {
+				continue
+			}
+			var err error = dbConn.Ping()
+			if err != nil {
+				e.Logger.Fatalf("db ping error %v", err)
+				panic(err)
+			}
+		}
+	}()
 
 	// HTTPサーバ起動
 	listenAddr := net.JoinHostPort("", strconv.Itoa(listenPort))
