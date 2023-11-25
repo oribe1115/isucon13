@@ -117,7 +117,7 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 
 func initializeHandler(c echo.Context) error {
 	var wg sync.WaitGroup
-	if os.Getenv("SERVER_ID") == "s1" {
+	if os.Getenv("SERVER_ID") == "s3" {
 		wg.Add(1)
 		go func() {
 			var dnsServerIP = os.Getenv("DNS_SERVER_IP")
