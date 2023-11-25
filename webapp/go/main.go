@@ -4,7 +4,6 @@ package main
 // sqlx的な参考: https://jmoiron.github.io/sqlx/
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"github.com/bytedance/sonic"
@@ -129,20 +128,20 @@ func initializeHandler(c echo.Context) error {
 	fmt.Println("start initialize")
 
 	var wg sync.WaitGroup
-	masterAPP := "s3"
-	if os.Getenv("SERVER_ID") == masterAPP {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			var dnsServerIP = os.Getenv("DNS_SERVER_IP")
-			res, err := http.Post(fmt.Sprintf("http://%s:8080/initialize", dnsServerIP), "application/json", bytes.NewBuffer([]byte{}))
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-			defer res.Body.Close()
-		}()
-	}
+	masterAPP := "s1"
+	// if os.Getenv("SERVER_ID") == masterAPP {
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		defer wg.Done()
+	// 		var dnsServerIP = os.Getenv("DNS_SERVER_IP")
+	// 		res, err := http.Post(fmt.Sprintf("http://%s:8080/initialize", dnsServerIP), "application/json", bytes.NewBuffer([]byte{}))
+	// 		if err != nil {
+	// 			fmt.Println(err)
+	// 			return
+	// 		}
+	// 		defer res.Body.Close()
+	// 	}()
+	// }
 
 	tmpTime := &time.Time{}
 	*tmpTime = time.Now()
