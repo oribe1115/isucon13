@@ -86,10 +86,10 @@ func getLivecommentsHandler(c echo.Context) error {
 
 	query := `
 	SELECT
-	  livecomments.id, livecomment.comment, livecomment.tip, livecomment.created_at
+	  livecomments.id, livecomments.comment, livecomments.tip, livecomments.created_at,
 	  user.id, user.name, user.display_name, user.description,
-	  usertheme.id AS user.theme.id, usertheme.dark_mode AS user.theme.dark_mode,
-	  usericons.image_hash AS user.icon_hash,
+	  usertheme.id AS 'user.theme.id', usertheme.dark_mode AS 'user.theme.dark_mode',
+	  usericons.image_hash AS 'user.icon_hash'
 	  FROM livecomments
 	LEFT JOIN users AS user ON user.id = livecomments.user_id
 	LEFT JOIN themes AS usertheme ON usertheme.user_id  = livecomments.user_id
@@ -119,8 +119,8 @@ func getLivecommentsHandler(c echo.Context) error {
 	  livestream.id AS id, livestream.title AS title, livestream.description as description, playlist_url, thumbnail_url, start_at, end_at,
 
 	  livestreamowner.id AS owner.id, livestreamowner.name AS owner.name, livestreamowner.display_name AS owner.display_name, livestreamowner.description AS owner.description,
-	  livestreamownertheme.id AS owner.theme.id, livestreamownertheme.dark_mode AS owner.theme.dark_mode
-	  livestreamownericons.image_hash AS owner.icon_hash
+	  livestreamownertheme.id AS 'owner.theme.id', livestreamownertheme.dark_mode AS 'owner.theme.dark_mode',
+	  livestreamownericons.image_hash AS 'owner.icon_hash'
 
 	  FROM livestreams AS livestream
 	LEFT JOIN users AS livestreamowner ON livestreamowner.id  = livestream.user_id
