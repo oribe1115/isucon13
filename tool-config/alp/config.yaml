@@ -2,7 +2,7 @@
 sort: sum                      # max|min|avg|sum|count|uri|method|max-body|min-body|avg-body|sum-body|p1|p50|p99|stddev
 reverse: true                   # boolean
 query_string: true              # boolean
-output: count,5xx,4xx,method,uri,min,max,sum,avg,p99                    # string(comma separated)
+output: count,5xx,4xx,3xx,method,uri,min,max,sum,avg,p99                    # string(comma separated)
 
 # 必ず`^`と`&`を使った完全一致の記述を行うこと
 matching_groups:            # array
