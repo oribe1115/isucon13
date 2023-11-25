@@ -119,7 +119,8 @@ func initializeHandler(c echo.Context) error {
 	fmt.Println("start initialize")
 
 	var wg sync.WaitGroup
-	if os.Getenv("SERVER_ID") == "s3" {
+	masterAPP := "s3"
+	if os.Getenv("SERVER_ID") == masterAPP {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -141,9 +142,11 @@ func initializeHandler(c echo.Context) error {
 		c.Logger().Warnf("init.sh failed with err=%s", string(out))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
 	}
-	if out, err := exec.Command("../sql/initdb.sh").CombinedOutput(); err != nil {
-		c.Logger().Warnf("init.sh failed with err=%s", string(out))
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
+	if os.Getenv("SERVER_ID") == masterAPP {
+		if out, err := exec.Command("../sql/initdb.sh").CombinedOutput(); err != nil {
+			c.Logger().Warnf("init.sh failed with err=%s", string(out))
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
+		}
 	}
 
 	iconHashCache.Purge()
