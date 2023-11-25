@@ -30,12 +30,12 @@ type LivecommentModel struct {
 }
 
 type Livecomment struct {
-	ID         int64      `db:"livecomment.id" json:"id"`
+	ID         int64      `db:"id" json:"id"`
 	User       User       `db:"user" json:"user"`
 	Livestream Livestream `json:"livestream"`
-	Comment    string     `db:"livecomment.comment" json:"comment"`
-	Tip        int64      `db:"livecomment.tip" json:"tip"`
-	CreatedAt  int64      `db:"livecomment.created_at" json:"created_at"`
+	Comment    string     `db:"comment" json:"comment"`
+	Tip        int64      `db:"tip" json:"tip"`
+	CreatedAt  int64      `db:"created_at" json:"created_at"`
 }
 
 type LivecommentReport struct {
