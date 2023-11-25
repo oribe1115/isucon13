@@ -19,6 +19,26 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func getUser(ctx context.Context, userID int64) (*UserModel, error) {
+	var user UserModel
+	if err := dbConn.GetContext(ctx, &user, "SELECT * FROM users WHERE id = ?", userID); err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+var userCache = sc.NewMust(getUser, 90*time.Second, 90*time.Second)
+
+func getUserIDByName(ctx context.Context, name string) (int64, error) {
+	var id int64
+	if err := dbConn.GetContext(ctx, &id, "SELECT id FROM users WHERE name = ?", name); err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+var userIDByNameCache = sc.NewMust(getUserIDByName, 90*time.Second, 90*time.Second)
+
 func getTheme(ctx context.Context, userID int64) (*ThemeModel, error) {
 	var theme ThemeModel
 	if err := dbConn.GetContext(ctx, &theme, "SELECT * FROM themes WHERE user_id = ?", userID); err != nil {
@@ -113,22 +133,30 @@ func getIconHandler(c echo.Context) error {
 
 	username := c.Param("username")
 
-	tx, err := dbConn.BeginTxx(ctx, nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
-	}
-	defer tx.Rollback()
+	//tx, err := dbConn.BeginTxx(ctx, nil)
+	//if err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
+	//}
+	//defer tx.Rollback()
 
-	var user UserModel
-	if err := tx.GetContext(ctx, &user, "SELECT * FROM users WHERE name = ?", username); err != nil {
+	userID, err := userIDByNameCache.Get(ctx, username)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return echo.NewHTTPError(http.StatusNotFound, "not found user that has the given username")
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 	}
 
+	//var user UserModel
+	//if err := tx.GetContext(ctx, &user, "SELECT * FROM users WHERE name = ?", username); err != nil {
+	//	if errors.Is(err, sql.ErrNoRows) {
+	//		return echo.NewHTTPError(http.StatusNotFound, "not found user that has the given username")
+	//	}
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
+	//}
+
 	ifNoneMatch := c.Request().Header.Get("If-None-Match")
-	iconHash, err := iconHashCache.Get(ctx, user.ID)
+	iconHash, err := iconHashCache.Get(ctx, userID)
 	if err == nil { // ignore error
 		if iconHash == ifNoneMatch || `"`+iconHash+`"` == ifNoneMatch {
 			return c.NoContent(http.StatusNotModified)
@@ -136,7 +164,7 @@ func getIconHandler(c echo.Context) error {
 	}
 
 	var image []byte
-	if err := tx.GetContext(ctx, &image, "SELECT image FROM icons WHERE user_id = ?", user.ID); err != nil {
+	if err := dbConn.GetContext(ctx, &image, "SELECT image FROM icons WHERE user_id = ?", userID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c.File(fallbackImage)
 		} else {
@@ -217,8 +245,8 @@ func getMeHandler(c echo.Context) error {
 	}
 	defer tx.Rollback()
 
-	userModel := UserModel{}
-	err = tx.GetContext(ctx, &userModel, "SELECT * FROM users WHERE id = ?", userID)
+	userModel, err := userCache.Get(ctx, userID)
+	//err = tx.GetContext(ctx, &userModel, "SELECT * FROM users WHERE id = ?", userID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return echo.NewHTTPError(http.StatusNotFound, "not found user that has the userid in session")
 	}
@@ -226,7 +254,7 @@ func getMeHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 	}
 
-	user, err := fillUserResponse(ctx, userModel)
+	user, err := fillUserResponse(ctx, *userModel)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill user: "+err.Error())
 	}
@@ -318,25 +346,30 @@ func loginHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "failed to decode the request body as json")
 	}
 
-	tx, err := dbConn.BeginTxx(ctx, nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
-	}
-	defer tx.Rollback()
+	//tx, err := dbConn.BeginTxx(ctx, nil)
+	//if err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
+	//}
+	//defer tx.Rollback()
 
-	userModel := UserModel{}
+	//userModel := UserModel{}
 	// usernameはUNIQUEなので、whereで一意に特定できる
-	err = tx.GetContext(ctx, &userModel, "SELECT * FROM users WHERE name = ?", req.Username)
+	//err = tx.GetContext(ctx, &userModel, "SELECT * FROM users WHERE name = ?", req.Username)
+	userID, err := userIDByNameCache.Get(ctx, req.Username)
 	if errors.Is(err, sql.ErrNoRows) {
 		return echo.NewHTTPError(http.StatusUnauthorized, "invalid username or password")
 	}
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 	}
-
-	if err := tx.Commit(); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
+	userModel, err := userCache.Get(ctx, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 	}
+
+	//if err := tx.Commit(); err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
+	//}
 
 	err = bcrypt.CompareHashAndPassword([]byte(userModel.HashedPassword), []byte(req.Password))
 	if err == bcrypt.ErrMismatchedHashAndPassword {
@@ -383,28 +416,39 @@ func getUserHandler(c echo.Context) error {
 
 	username := c.Param("username")
 
-	tx, err := dbConn.BeginTxx(ctx, nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
-	}
-	defer tx.Rollback()
+	//tx, err := dbConn.BeginTxx(ctx, nil)
+	//if err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
+	//}
+	//defer tx.Rollback()
 
-	userModel := UserModel{}
-	if err := tx.GetContext(ctx, &userModel, "SELECT * FROM users WHERE name = ?", username); err != nil {
+	userID, err := userIDByNameCache.Get(ctx, username)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return echo.NewHTTPError(http.StatusNotFound, "not found user that has the given username")
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 	}
+	userModel, err := userCache.Get(ctx, userID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
+	}
+	//userModel := UserModel{}
+	//if err := tx.GetContext(ctx, &userModel, "SELECT * FROM users WHERE name = ?", username); err != nil {
+	//	if errors.Is(err, sql.ErrNoRows) {
+	//		return echo.NewHTTPError(http.StatusNotFound, "not found user that has the given username")
+	//	}
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
+	//}
 
-	user, err := fillUserResponse(ctx, userModel)
+	user, err := fillUserResponse(ctx, *userModel)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill user: "+err.Error())
 	}
 
-	if err := tx.Commit(); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
-	}
+	//if err := tx.Commit(); err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
+	//}
 
 	return c.JSON(http.StatusOK, user)
 }

@@ -71,8 +71,9 @@ func getStreamerThemeHandler(c echo.Context) error {
 	}
 	defer tx.Rollback()
 
-	userModel := UserModel{}
-	err = tx.GetContext(ctx, &userModel, "SELECT id FROM users WHERE name = ?", username)
+	userID, err := userIDByNameCache.Get(ctx, username)
+	//userModel := UserModel{}
+	//err = tx.GetContext(ctx, &userModel, "SELECT id FROM users WHERE name = ?", username)
 	if errors.Is(err, sql.ErrNoRows) {
 		return echo.NewHTTPError(http.StatusNotFound, "not found user that has the given username")
 	}
@@ -80,7 +81,7 @@ func getStreamerThemeHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 	}
 
-	themeModel, err := themeCache.Get(ctx, userModel.ID)
+	themeModel, err := themeCache.Get(ctx, userID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user theme: "+err.Error())
 	}
