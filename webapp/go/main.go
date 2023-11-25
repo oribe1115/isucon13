@@ -4,6 +4,7 @@ package main
 // sqlx的な参考: https://jmoiron.github.io/sqlx/
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"net"
@@ -114,6 +115,13 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 }
 
 func initializeHandler(c echo.Context) error {
+
+	image, err := os.ReadFile(fallbackImage)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
+	}
+	fallbackImageHash = sha256.Sum256(image)
+
 	tmpTime := &time.Time{}
 	*tmpTime = time.Now()
 	benchstart.Store(tmpTime)
