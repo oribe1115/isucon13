@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -114,6 +115,16 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 }
 
 func initializeHandler(c echo.Context) error {
+	var wg sync.WaitGroup
+	if os.Getenv("SERVER_ID") == "s1" {
+		wg.Add(1)
+		go func() {
+			var dnsServerIP = os.Getenv("DNS_SERVER_IP")
+			_, err := http.Post(fmt.Sprintf("http://%s/initialize", dnsServerIP), "application/json", nil)
+			fmt.Println(err)
+			defer wg.Done()
+		}()
+	}
 
 	tmpTime := &time.Time{}
 	*tmpTime = time.Now()
@@ -130,6 +141,9 @@ func initializeHandler(c echo.Context) error {
 	userIDByNameCache.Purge()
 
 	c.Request().Header.Add("Content-Type", "application/json;charset=utf-8")
+
+	wg.Wait()
+
 	return c.JSON(http.StatusOK, InitializeResponse{
 		Language: "golang",
 	})
