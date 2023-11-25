@@ -193,6 +193,7 @@ func postIconHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "failed to decode the request body as json")
 	}
 
+	// NOTE(toki): 一応このtransactionは残しておく
 	tx, err := dbConn.BeginTxx(ctx, nil)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
@@ -239,11 +240,11 @@ func getMeHandler(c echo.Context) error {
 	// existence already checked
 	userID := sess.Values[defaultUserIDKey].(int64)
 
-	tx, err := dbConn.BeginTxx(ctx, nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
-	}
-	defer tx.Rollback()
+	//tx, err := dbConn.BeginTxx(ctx, nil)
+	//if err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
+	//}
+	//defer tx.Rollback()
 
 	userModel, err := userCache.Get(ctx, userID)
 	//err = tx.GetContext(ctx, &userModel, "SELECT * FROM users WHERE id = ?", userID)
@@ -259,9 +260,9 @@ func getMeHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill user: "+err.Error())
 	}
 
-	if err := tx.Commit(); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
-	}
+	//if err := tx.Commit(); err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
+	//}
 
 	return c.JSON(http.StatusOK, user)
 }
@@ -286,11 +287,11 @@ func registerHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to generate hashed password: "+err.Error())
 	}
 
-	tx, err := dbConn.BeginTxx(ctx, nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
-	}
-	defer tx.Rollback()
+	//tx, err := dbConn.BeginTxx(ctx, nil)
+	//if err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
+	//}
+	//defer tx.Rollback()
 
 	userModel := UserModel{
 		Name:           req.Name,
@@ -299,7 +300,7 @@ func registerHandler(c echo.Context) error {
 		HashedPassword: string(hashedPassword),
 	}
 
-	result, err := tx.NamedExecContext(ctx, "INSERT INTO users (name, display_name, description, password) VALUES(:name, :display_name, :description, :password)", userModel)
+	result, err := dbConn.NamedExecContext(ctx, "INSERT INTO users (name, display_name, description, password) VALUES(:name, :display_name, :description, :password)", userModel)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert user: "+err.Error())
 	}
@@ -315,7 +316,7 @@ func registerHandler(c echo.Context) error {
 		UserID:   userID,
 		DarkMode: req.Theme.DarkMode,
 	}
-	if _, err := tx.NamedExecContext(ctx, "INSERT INTO themes (user_id, dark_mode) VALUES(:user_id, :dark_mode)", themeModel); err != nil {
+	if _, err := dbConn.NamedExecContext(ctx, "INSERT INTO themes (user_id, dark_mode) VALUES(:user_id, :dark_mode)", themeModel); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert user theme: "+err.Error())
 	}
 
@@ -323,9 +324,9 @@ func registerHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, string(out)+": "+err.Error())
 	}
 
-	if err := tx.Commit(); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
-	}
+	//if err := tx.Commit(); err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
+	//}
 
 	user, err := fillUserResponse(ctx, userModel)
 	if err != nil {
