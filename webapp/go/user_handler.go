@@ -197,6 +197,9 @@ func postIconHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "failed to decode the request body as json")
 	}
 
+	iconHash := sha256.Sum256(req.Image)
+	iconHashStr := fmt.Sprintf("%x", iconHash)
+
 	// NOTE(toki): 一応このtransactionは残しておく
 	tx, err := dbConn.BeginTxx(ctx, nil)
 	if err != nil {
@@ -208,8 +211,6 @@ func postIconHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete old user icon: "+err.Error())
 	}
 
-	iconHash := sha256.Sum256(req.Image)
-	iconHashStr := fmt.Sprintf("%x", iconHash)
 	rs, err := tx.ExecContext(ctx, "INSERT INTO icons (user_id, image, image_hash) VALUES (?, ?, ?)", userID, req.Image, iconHashStr)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert new user icon: "+err.Error())
