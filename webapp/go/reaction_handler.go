@@ -64,14 +64,17 @@ func getReactionsHandler(c echo.Context) error {
 	if err := dbConn.SelectContext(ctx, &reactionModels, query, livestreamID); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "failed to get reactions")
 	}
+	livestream, err := filledLivestreamResponse(ctx, int64(livestreamID))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "failed to get filledLivestreamResponse")
+	}
 
 	reactions := make([]Reaction, len(reactionModels))
 	for i := range reactionModels {
-		reaction, err := fillReactionResponse(ctx, reactionModels[i])
+		reaction, err := fillReactionResponseImpl(ctx, reactionModels[i], &livestream)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill reaction: "+err.Error())
 		}
-
 		reactions[i] = reaction
 	}
 
@@ -141,6 +144,10 @@ func postReactionHandler(c echo.Context) error {
 }
 
 func fillReactionResponse(ctx context.Context, reactionModel ReactionModel) (Reaction, error) {
+	return fillReactionResponseImpl(ctx, reactionModel, nil)
+}
+
+func fillReactionResponseImpl(ctx context.Context, reactionModel ReactionModel, livestreamDefault *Livestream) (Reaction, error) {
 	userModel, err := userCache.Get(ctx, reactionModel.UserID)
 	if err != nil {
 		return Reaction{}, err
@@ -154,13 +161,14 @@ func fillReactionResponse(ctx context.Context, reactionModel ReactionModel) (Rea
 		return Reaction{}, err
 	}
 
-	livestreamModel := LivestreamModel{}
-	if err := dbConn.GetContext(ctx, &livestreamModel, "SELECT * FROM livestreams WHERE id = ?", reactionModel.LivestreamID); err != nil {
-		return Reaction{}, err
-	}
-	livestream, err := fillLivestreamResponse(ctx, livestreamModel)
-	if err != nil {
-		return Reaction{}, err
+	var livestream Livestream
+	if livestreamDefault != nil {
+		livestream = *livestreamDefault
+	} else {
+		livestream, err = filledLivestreamResponse(ctx, reactionModel.LivestreamID)
+		if err != nil {
+			return Reaction{}, err
+		}
 	}
 
 	reaction := Reaction{

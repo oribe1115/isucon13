@@ -114,32 +114,9 @@ func getLivecommentsHandler(c echo.Context) error {
 	}
 
 	//livestream
-	queryLivestream := `
-	SELECT
-	  livestream.id AS id, livestream.title AS title, livestream.description AS description, playlist_url, thumbnail_url, start_at, end_at,
-
-	  livestreamowner.id AS 'owner.id', livestreamowner.name AS 'owner.name', livestreamowner.display_name AS 'owner.display_name', livestreamowner.description AS 'owner.description',
-	  livestreamownertheme.id AS 'owner.theme.id', livestreamownertheme.dark_mode AS 'owner.theme.dark_mode',
-	  IFNULL(livestreamownericons.image_hash, "") AS 'owner.icon_hash'
-
-	  FROM livestreams AS livestream
-	LEFT JOIN users AS livestreamowner ON livestreamowner.id  = livestream.user_id
-	LEFT JOIN themes AS livestreamownertheme ON livestreamownertheme.user_id  = livestream.user_id
-	LEFT JOIN icons AS livestreamownericons ON livestreamownericons.user_id  = livestream.user_id
-	WHERE livestream.id = ?
-	`
-	var livestream Livestream
-	err = dbConn.GetContext(ctx, &livestream, queryLivestream, livestreamID)
+	livestream, err := filledLivestreamResponse(ctx, int64(livestreamID))
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livecomments: "+err.Error())
-	}
-	tags, err := getLivestreamTags(ctx, int64(livestreamID))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to getLivestreamTags: "+err.Error())
-	}
-	livestream.Tags = tags
-	if livestream.Owner.IconHash == "" {
-		livestream.Owner.IconHash = fmt.Sprintf("%x", fallbackImageHash)
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get filledLivestreamResponse: "+err.Error())
 	}
 	for i := range livecomments {
 		if livecomments[i].User.IconHash == "" {
