@@ -205,7 +205,7 @@ func searchLivestreamsHandler(c echo.Context) error {
 		*/
 
 		if !noSuchTag {
-			query := "SELECT * FROM livestreams l JOIN livestream_tags lt ON l.id = lt.livestream_id WHERE lt.tag_id = ? ORDER BY l.id DESC"
+			query := "SELECT l.* FROM livestreams l JOIN livestream_tags lt ON l.id = lt.livestream_id WHERE lt.tag_id = ? ORDER BY l.id DESC"
 			if err := dbConn.SelectContext(ctx, &livestreamModels, query, tagID); err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
 			}
