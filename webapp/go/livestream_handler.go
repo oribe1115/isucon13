@@ -170,7 +170,7 @@ func reserveLivestreamHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill livestream: "+err.Error())
 	}
 
-	return c.JSON(http.StatusCreated, livestream)
+	return cJSON(c, http.StatusCreated, livestream)
 }
 
 func searchLivestreamsHandler(c echo.Context) error {
@@ -251,7 +251,7 @@ func searchLivestreamsHandler(c echo.Context) error {
 	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	//}
 
-	return c.JSON(http.StatusOK, livestreams)
+	return cJSON(c, http.StatusOK, livestreams)
 }
 
 func getMyLivestreamsHandler(c echo.Context) error {
@@ -288,7 +288,7 @@ func getMyLivestreamsHandler(c echo.Context) error {
 	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	//}
 
-	return c.JSON(http.StatusOK, livestreams)
+	return cJSON(c, http.StatusOK, livestreams)
 }
 
 func getUserLivestreamsHandler(c echo.Context) error {
@@ -339,7 +339,7 @@ func getUserLivestreamsHandler(c echo.Context) error {
 	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	//}
 
-	return c.JSON(http.StatusOK, livestreams)
+	return cJSON(c, http.StatusOK, livestreams)
 }
 
 // viewerテーブルの廃止
@@ -453,7 +453,7 @@ func getLivestreamHandler(c echo.Context) error {
 	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	//}
 
-	return c.JSON(http.StatusOK, livestream)
+	return cJSON(c, http.StatusOK, livestream)
 }
 
 func getLivecommentReportsHandler(c echo.Context) error {
@@ -506,7 +506,7 @@ func getLivecommentReportsHandler(c echo.Context) error {
 	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	//}
 
-	return c.JSON(http.StatusOK, reports)
+	return cJSON(c, http.StatusOK, reports)
 }
 
 var livestreamTagsCache = sc.NewMust(_getLivestreamTags, 90*time.Second, 90*time.Second)

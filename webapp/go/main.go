@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
+	"github.com/bytedance/sonic"
 	"log"
 	"net"
 	"net/http"
@@ -39,6 +40,15 @@ var (
 	dbConn                   *sqlx.DB
 	secret                   = []byte("isucon13_session_cookiestore_defaultsecret")
 )
+
+func cJSON(c echo.Context, code int, res any) error {
+	b, err := sonic.Marshal(&res)
+	if err != nil {
+		c.Logger().Errorf(err.Error())
+		return echo.NewHTTPError(http.StatusInternalServerError)
+	}
+	return c.JSONBlob(code, b)
+}
 
 func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
@@ -159,7 +169,7 @@ func initializeHandler(c echo.Context) error {
 
 	wg.Wait()
 
-	return c.JSON(http.StatusOK, InitializeResponse{
+	return cJSON(c, http.StatusOK, InitializeResponse{
 		Language: "golang",
 	})
 }
@@ -297,13 +307,13 @@ type ErrorResponse struct {
 func errorResponseHandler(err error, c echo.Context) {
 	c.Logger().Errorf("error at %s: %+v", c.Path(), err)
 	if he, ok := err.(*echo.HTTPError); ok {
-		if e := c.JSON(he.Code, &ErrorResponse{Error: err.Error()}); e != nil {
+		if e := cJSON(c, he.Code, &ErrorResponse{Error: err.Error()}); e != nil {
 			c.Logger().Errorf("%+v", e)
 		}
 		return
 	}
 
-	if e := c.JSON(http.StatusInternalServerError, &ErrorResponse{Error: err.Error()}); e != nil {
+	if e := cJSON(c, http.StatusInternalServerError, &ErrorResponse{Error: err.Error()}); e != nil {
 		c.Logger().Errorf("%+v", e)
 	}
 }
