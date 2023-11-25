@@ -9,6 +9,7 @@ matching_groups:            # array
   - ^/api/initialize$
   - ^/api/tag$
   - ^/api/user/[^/]+/theme$
+  - ^/api/user/[^/]+/livestream$
   - ^/api/livestream$
   - ^/api/livestream/reservation$
   - ^/api/livestream/search
