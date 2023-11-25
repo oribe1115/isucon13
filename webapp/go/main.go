@@ -142,6 +142,7 @@ func initializeHandler(c echo.Context) error {
 	themeCache.Purge()
 	userCache.Purge()
 	userIDByNameCache.Purge()
+	livestreamTagsCache.Purge()
 
 	c.Request().Header.Add("Content-Type", "application/json;charset=utf-8")
 
