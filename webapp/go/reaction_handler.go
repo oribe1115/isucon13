@@ -146,7 +146,7 @@ func fillReactionResponse(ctx context.Context, tx *sqlx.Tx, reactionModel Reacti
 	if err := tx.GetContext(ctx, &userModel, "SELECT * FROM users WHERE id = ?", reactionModel.UserID); err != nil {
 		return Reaction{}, err
 	}
-	user, err := fillUserResponse(ctx, tx, userModel)
+	user, err := fillUserResponse(ctx, userModel)
 	if err != nil {
 		return Reaction{}, err
 	}
