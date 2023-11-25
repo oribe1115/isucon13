@@ -1,6 +1,14 @@
-# ISUCON12 Template
+# ISUCON13 織時屋
 
-ISUCON12用リポジトリテンプレート
+ISUCON13での「織時屋」のリポジトリです
+
+チームメンバー
+- @oribe1115
+- @Nagarei
+- @motoki317
+
+## ISUCON13 Template
+
 
 `/home/isucon`に展開する前提
 
