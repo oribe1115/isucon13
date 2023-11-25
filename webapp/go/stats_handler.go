@@ -98,11 +98,11 @@ func getUserStatisticsHandler(c echo.Context) error {
 		ReactionsCount int64  `db:"reactions_count"`
 	}
 	var urs []userReactionCount
-	query := `SELECT u.id AS user_id, u.name AS user_name, COUNT(*) AS reactions_count FROM users u LEFT JOIN livestreams l ON l.user_id = u.id LEFT JOIN reactions r ON r.livestream_id = l.id GROUP BY u.id`
+	query := `SELECT u.id AS user_id, u.name AS user_name, COUNT(r.livestream_id) AS reactions_count FROM users u LEFT JOIN livestreams l ON l.user_id = u.id LEFT JOIN reactions r ON r.livestream_id = l.id GROUP BY u.id`
 	if err := tx.SelectContext(ctx, &urs, query); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to count reactions: "+err.Error())
 	}
-	query = `SELECT u.id AS user_id, IFNULL(SUM(l2.tip), 0) AS tips_sum, COUNT(*) AS total_live_comments FROM users u LEFT JOIN livestreams l ON l.user_id = u.id LEFT JOIN livecomments l2 ON l2.livestream_id = l.id GROUP BY u.id`
+	query = `SELECT u.id AS user_id, IFNULL(SUM(l2.tip), 0) AS tips_sum, COUNT(l2.livestream_id) AS total_live_comments FROM users u LEFT JOIN livestreams l ON l.user_id = u.id LEFT JOIN livecomments l2 ON l2.livestream_id = l.id GROUP BY u.id`
 	type userTipSum struct {
 		UserID            string `db:"user_id"`
 		TipsSum           int64  `db:"tips_sum"`
@@ -175,15 +175,17 @@ func getUserStatisticsHandler(c echo.Context) error {
 	}
 
 	// リアクション数
-	var totalReactions int64
-	query = `SELECT COUNT(*) FROM users u 
-    INNER JOIN livestreams l ON l.user_id = u.id 
-    INNER JOIN reactions r ON r.livestream_id = l.id
-    WHERE u.name = ?
-	`
-	if err := tx.GetContext(ctx, &totalReactions, query, username); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to count total reactions: "+err.Error())
-	}
+	var totalReactions = userStats.ReactionsCount
+	/*
+			query = `SELECT COUNT(*) FROM users u
+		    INNER JOIN livestreams l ON l.user_id = u.id
+		    INNER JOIN reactions r ON r.livestream_id = l.id
+		    WHERE u.name = ?
+			`
+			if err := tx.GetContext(ctx, &totalReactions, query, username); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return echo.NewHTTPError(http.StatusInternalServerError, "failed to count total reactions: "+err.Error())
+			}
+	*/
 
 	// ライブコメント数、チップ合計
 	var totalLivecomments = userStats.TotalLiveComments
