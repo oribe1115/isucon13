@@ -87,7 +87,7 @@ func getLivecommentsHandler(c echo.Context) error {
 	query := `
 	SELECT
 	  livecomments.id, livecomments.comment, livecomments.tip, livecomments.created_at,
-	  user.id, user.name, user.display_name, user.description,
+	  user.id AS 'user.id', user.name AS 'user.name', user.display_name AS 'user.display_name', user.description AS 'user.description',
 	  usertheme.id AS 'user.theme.id', usertheme.dark_mode AS 'user.theme.dark_mode',
 	  usericons.image_hash AS 'user.icon_hash'
 	  FROM livecomments
