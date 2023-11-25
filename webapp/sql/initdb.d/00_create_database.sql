@@ -1,3 +1,4 @@
+DROP DATABASE `isupipe`;
 CREATE DATABASE IF NOT EXISTS `isupipe`;
 
 DROP USER IF EXISTS `isucon`@`%`;
