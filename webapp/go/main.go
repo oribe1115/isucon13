@@ -4,6 +4,7 @@ package main
 // sqlx的な参考: https://jmoiron.github.io/sqlx/
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"log"
 	"net"
@@ -113,6 +114,7 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 }
 
 func initializeHandler(c echo.Context) error {
+
 	tmpTime := &time.Time{}
 	*tmpTime = time.Now()
 	benchstart.Store(tmpTime)
@@ -236,6 +238,12 @@ func main() {
 			}
 		}
 	}()
+
+	image, err := os.ReadFile(fallbackImage)
+	if err != nil {
+		panic(err)
+	}
+	fallbackImageHash = sha256.Sum256(image)
 
 	// HTTPサーバ起動
 	listenAddr := net.JoinHostPort("", strconv.Itoa(listenPort))
