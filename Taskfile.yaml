@@ -3,10 +3,10 @@ version: '3'
 vars:
   # 問題に応じて設定する必要がある変数
   USER: isucon
-  BIN_NAME: 
-  BUILD_DIR: 
-  SERVICE_NAME: 
-  ENV_FILE: 
+  BIN_NAME: isupipe
+  BUILD_DIR: /home/isucon/webapp/go
+  SERVICE_NAME: isupipe-go.service
+  ENV_FILE: env.sh
 
   GIT_REPOSITORY: git@github.com:oribe1115/isucon13.git
 

@@ -22,3 +22,10 @@ local
 !s3/home/isucon/.env
 !s4/home/isucon/.env
 !s5/home/isucon/.env
+
+webapp/node/node_modules
+.cache
+webapp/php/vendor
+webapp/go/isupipe
+webapp/perl/local
+webapp/rust/target
