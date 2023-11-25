@@ -43,7 +43,7 @@ key_buffer_size		= 16M
 # the first time they are touched
 myisam-recover-options  = BACKUP
 
-# max_connections        = 151
+max_connections        = 410
 
 # table_open_cache       = 4000
 
@@ -76,3 +76,5 @@ log-queries-not-using-indexes
 max_binlog_size   = 100M
 # binlog_do_db		= include_database_name
 # binlog_ignore_db	= include_database_name
+skip-log-bin
+skip-innodb-doublewrite
