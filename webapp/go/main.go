@@ -4,6 +4,7 @@ package main
 // sqlx的な参考: https://jmoiron.github.io/sqlx/
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -114,14 +116,37 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 }
 
 func initializeHandler(c echo.Context) error {
+	fmt.Println("start initialize")
+
+	var wg sync.WaitGroup
+	masterAPP := "s3"
+	if os.Getenv("SERVER_ID") == masterAPP {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			var dnsServerIP = os.Getenv("DNS_SERVER_IP")
+			res, err := http.Post(fmt.Sprintf("http://%s:8080/initialize", dnsServerIP), "application/json", bytes.NewBuffer([]byte{}))
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			defer res.Body.Close()
+		}()
+	}
 
 	tmpTime := &time.Time{}
 	*tmpTime = time.Now()
 	benchstart.Store(tmpTime)
 
-	if out, err := exec.Command("../sql/init.sh").CombinedOutput(); err != nil {
+	if out, err := exec.Command("../sql/initdns.sh").CombinedOutput(); err != nil {
 		c.Logger().Warnf("init.sh failed with err=%s", string(out))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
+	}
+	if os.Getenv("SERVER_ID") == masterAPP {
+		if out, err := exec.Command("../sql/initdb.sh").CombinedOutput(); err != nil {
+			c.Logger().Warnf("init.sh failed with err=%s", string(out))
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
+		}
 	}
 
 	iconHashCache.Purge()
@@ -131,6 +156,9 @@ func initializeHandler(c echo.Context) error {
 	livestreamTagsCache.Purge()
 
 	c.Request().Header.Add("Content-Type", "application/json;charset=utf-8")
+
+	wg.Wait()
+
 	return c.JSON(http.StatusOK, InitializeResponse{
 		Language: "golang",
 	})
@@ -208,6 +236,9 @@ func main() {
 
 	// 課金情報
 	e.GET("/api/payment", GetPaymentResult)
+
+	// 追加したAPI
+	e.POST("/api/register/pdnsutil", postRegisterPdnsutil)
 
 	e.HTTPErrorHandler = errorResponseHandler
 
