@@ -247,7 +247,11 @@ func postLivecommentHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	}
 
-	livecomment, err := fillLivecommentResponse(ctx, livecommentModel)
+	livestream, err := fillLivestreamResponse(ctx, livestreamModel)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get fillLivestreamResponse: "+err.Error())
+	}
+	livecomment, err := fillLivecommentResponseImpl(ctx, livecommentModel, &livestream)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill livecomment: "+err.Error())
 	}
@@ -411,6 +415,9 @@ func moderateHandler(c echo.Context) error {
 }
 
 func fillLivecommentResponse(ctx context.Context, livecommentModel LivecommentModel) (Livecomment, error) {
+	return fillLivecommentResponseImpl(ctx, livecommentModel, nil)
+}
+func fillLivecommentResponseImpl(ctx context.Context, livecommentModel LivecommentModel, livestreamDefault *Livestream) (Livecomment, error) {
 	commentOwnerModel, err := userCache.Get(ctx, livecommentModel.UserID)
 	if err != nil {
 		return Livecomment{}, err
@@ -424,13 +431,14 @@ func fillLivecommentResponse(ctx context.Context, livecommentModel LivecommentMo
 		return Livecomment{}, err
 	}
 
-	livestreamModel := LivestreamModel{}
-	if err := dbConn.GetContext(ctx, &livestreamModel, "SELECT * FROM livestreams WHERE id = ?", livecommentModel.LivestreamID); err != nil {
-		return Livecomment{}, err
-	}
-	livestream, err := fillLivestreamResponse(ctx, livestreamModel)
-	if err != nil {
-		return Livecomment{}, err
+	var livestream Livestream
+	if livestreamDefault != nil {
+		livestream = *livestreamDefault
+	} else {
+		livestream, err = filledLivestreamResponse(ctx, livecommentModel.LivestreamID)
+		if err != nil {
+			return Livecomment{}, err
+		}
 	}
 
 	livecomment := Livecomment{
