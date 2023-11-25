@@ -6,7 +6,6 @@ package main
 import (
 	"crypto/sha256"
 	"fmt"
-	"github.com/bytedance/sonic"
 	"log"
 	"net"
 	"net/http"
@@ -16,6 +15,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/bytedance/sonic"
 
 	_ "net/http/pprof"
 
@@ -30,7 +31,7 @@ import (
 )
 
 const (
-	listenPort                     = 8080
+	listenPort                     = 443
 	powerDNSSubdomainAddressEnvKey = "ISUCON13_POWERDNS_SUBDOMAIN_ADDRESS"
 )
 
@@ -249,6 +250,7 @@ func main() {
 	// 追加したAPI
 	e.POST("/api/register/pdnsutil", postRegisterPdnsutil)
 
+	e.File("/", "/home/isucon/webapp/public/index.html")
 	e.HTTPErrorHandler = errorResponseHandler
 
 	// DB接続
@@ -293,7 +295,7 @@ func main() {
 
 	// HTTPサーバ起動
 	listenAddr := net.JoinHostPort("", strconv.Itoa(listenPort))
-	if err := e.Start(listenAddr); err != nil {
+	if err := e.StartTLS(listenAddr, "/etc/nginx/tls/_.u.isucon.dev.crt", "/etc/nginx/tls/_.u.isucon.dev.key"); err != nil {
 		e.Logger.Errorf("failed to start HTTP server: %v", err)
 		os.Exit(1)
 	}

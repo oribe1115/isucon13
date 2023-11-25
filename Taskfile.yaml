@@ -354,9 +354,10 @@ tasks:
   restart:
     cmds:
       - sudo systemctl daemon-reload
+      - sudo systemctl disable nginx
+      - sudo systemctl stop nginx
       - sudo systemctl restart {{.SERVICE_NAME}}
       - sudo systemctl restart mysql
-      - sudo systemctl restart nginx
       # 特定のサーバーでだけ実行したい場合の例
       # - sh -c "if [ $SERVER_ID = "s1" ]; then (sudo systemctl restart nginx) fi"
 
