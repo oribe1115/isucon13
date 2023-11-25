@@ -120,8 +120,11 @@ func initializeHandler(c echo.Context) error {
 		wg.Add(1)
 		go func() {
 			var dnsServerIP = os.Getenv("DNS_SERVER_IP")
-			_, err := http.Post(fmt.Sprintf("http://%s/initialize", dnsServerIP), "application/json", nil)
-			fmt.Println(err)
+			res, err := http.Post(fmt.Sprintf("http://%s/initialize", dnsServerIP), "application/json", nil)
+			if err != nil {
+				fmt.Println(err)
+			}
+			defer res.Body.Close()
 			defer wg.Done()
 		}()
 	}
