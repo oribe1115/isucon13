@@ -20,6 +20,16 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func getTheme(ctx context.Context, userID int64) (*ThemeModel, error) {
+	var theme ThemeModel
+	if err := dbConn.GetContext(ctx, &theme, "SELECT * FROM themes WHERE user_id = ?", userID); err != nil {
+		return nil, err
+	}
+	return &theme, nil
+}
+
+var themeCache = sc.NewMust(getTheme, 90*time.Second, 90*time.Second)
+
 func getIconHash(ctx context.Context, userID int64) (string, error) {
 	var hash string
 	err := dbConn.GetContext(ctx, &hash, "SELECT image_hash FROM icons WHERE user_id = ?", userID)
@@ -427,10 +437,16 @@ func verifyUserSession(c echo.Context) error {
 var fallbackImageHash string
 
 func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (User, error) {
-	themeModel := ThemeModel{}
-	if err := tx.GetContext(ctx, &themeModel, "SELECT * FROM themes WHERE user_id = ?", userModel.ID); err != nil {
+	theme, err := themeCache.Get(ctx, userModel.ID)
+	if err != nil {
 		return User{}, err
 	}
+	/*
+		themeModel := ThemeModel{}
+		if err := tx.GetContext(ctx, &themeModel, "SELECT * FROM themes WHERE user_id = ?", userModel.ID); err != nil {
+			return User{}, err
+		}
+	*/
 
 	iconHash, err := iconHashCache.Get(ctx, userModel.ID)
 	if err != nil {
@@ -452,8 +468,8 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 		DisplayName: userModel.DisplayName,
 		Description: userModel.Description,
 		Theme: Theme{
-			ID:       themeModel.ID,
-			DarkMode: themeModel.DarkMode,
+			ID:       theme.ID,
+			DarkMode: theme.DarkMode,
 		},
 		IconHash: iconHash,
 	}
