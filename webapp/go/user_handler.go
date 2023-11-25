@@ -413,9 +413,6 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 			return User{}, err
 		}
 		iconHash = fmt.Sprintf("%x", fallbackImageHash)
-		if err != nil {
-			return User{}, err
-		}
 	}
 
 	user := User{
