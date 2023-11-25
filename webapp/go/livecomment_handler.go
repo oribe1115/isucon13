@@ -130,9 +130,6 @@ func getLivecommentsHandler(c echo.Context) error {
 	`
 	var livestream Livestream
 	err = tx.GetContext(ctx, &livestream, queryLivestream, livestreamID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return c.JSON(http.StatusOK, []*Livecomment{})
-	}
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livecomments: "+err.Error())
 	}
