@@ -11,6 +11,7 @@ require (
 	github.com/labstack/echo-contrib v0.15.0
 	github.com/labstack/echo/v4 v4.11.1
 	github.com/labstack/gommon v0.4.0
+	github.com/motoki317/sc v1.7.1
 	github.com/samber/lo v1.38.1
 	golang.org/x/crypto v0.11.0
 )
