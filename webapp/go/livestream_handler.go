@@ -288,17 +288,25 @@ func getUserLivestreamsHandler(c echo.Context) error {
 	}
 	defer tx.Rollback()
 
-	var user UserModel
-	if err := tx.GetContext(ctx, &user, "SELECT * FROM users WHERE name = ?", username); err != nil {
+	userID, err := userIDByNameCache.Get(ctx, username)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return echo.NewHTTPError(http.StatusNotFound, "user not found")
 		} else {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 		}
 	}
+	//var user UserModel
+	//if err := tx.GetContext(ctx, &user, "SELECT * FROM users WHERE name = ?", username); err != nil {
+	//	if errors.Is(err, sql.ErrNoRows) {
+	//		return echo.NewHTTPError(http.StatusNotFound, "user not found")
+	//	} else {
+	//		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
+	//	}
+	//}
 
 	var livestreamModels []*LivestreamModel
-	if err := tx.SelectContext(ctx, &livestreamModels, "SELECT * FROM livestreams WHERE user_id = ?", user.ID); err != nil {
+	if err := tx.SelectContext(ctx, &livestreamModels, "SELECT * FROM livestreams WHERE user_id = ?", userID); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livestreams: "+err.Error())
 	}
 	livestreams := make([]Livestream, len(livestreamModels))
@@ -515,7 +523,7 @@ func getLivestreamTags(ctx context.Context, tx *sqlx.Tx, livestream_id int64) ([
 func filledLivestreamResponse(ctx context.Context, tx *sqlx.Tx, livestreamID int64) (Livestream, error) {
 	queryLivestream := `
 	SELECT
-	  livestream.id AS id, livestream.title AS title, livestream.description as description, playlist_url, thumbnail_url, start_at, end_at,
+	  livestream.id AS id, livestream.title AS title, livestream.description AS description, playlist_url, thumbnail_url, start_at, end_at,
 
 	  livestreamowner.id AS 'owner.id', livestreamowner.name AS 'owner.name', livestreamowner.display_name AS 'owner.display_name', livestreamowner.description AS 'owner.description',
 	  livestreamownertheme.id AS 'owner.theme.id', livestreamownertheme.dark_mode AS 'owner.theme.dark_mode',
@@ -543,11 +551,15 @@ func filledLivestreamResponse(ctx context.Context, tx *sqlx.Tx, livestreamID int
 	return livestream, nil
 }
 func fillLivestreamResponse(ctx context.Context, tx *sqlx.Tx, livestreamModel LivestreamModel) (Livestream, error) {
-	ownerModel := UserModel{}
-	if err := tx.GetContext(ctx, &ownerModel, "SELECT * FROM users WHERE id = ?", livestreamModel.UserID); err != nil {
+	ownerModel, err := userCache.Get(ctx, livestreamModel.UserID)
+	if err != nil {
 		return Livestream{}, err
 	}
-	owner, err := fillUserResponse(ctx, tx, ownerModel)
+	//ownerModel := UserModel{}
+	//if err := tx.GetContext(ctx, &ownerModel, "SELECT * FROM users WHERE id = ?", livestreamModel.UserID); err != nil {
+	//	return Livestream{}, err
+	//}
+	owner, err := fillUserResponse(ctx, *ownerModel)
 	if err != nil {
 		return Livestream{}, err
 	}
