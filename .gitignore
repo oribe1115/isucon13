@@ -16,12 +16,12 @@ local
 !webapp/go
 
 # 環境変数のファイル名に合わせること
-.env.sh
-!s1/home/isucon/.env.sh
-!s2/home/isucon/.env.sh
-!s3/home/isucon/.env.sh
-!s4/home/isucon/.env.sh
-!s5/home/isucon/.env.sh
+env.sh
+!s1/home/isucon/env.sh
+!s2/home/isucon/env.sh
+!s3/home/isucon/env.sh
+!s4/home/isucon/env.sh
+!s5/home/isucon/env.sh
 
 webapp/node/node_modules
 .cache
