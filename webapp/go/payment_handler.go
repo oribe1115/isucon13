@@ -28,7 +28,7 @@ func GetPaymentResult(c echo.Context) error {
 	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	//}
 
-	return c.JSON(http.StatusOK, &PaymentResult{
+	return cJSON(c, http.StatusOK, &PaymentResult{
 		TotalTip: totalTip,
 	})
 }

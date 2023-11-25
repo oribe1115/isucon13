@@ -225,7 +225,7 @@ func postIconHandler(c echo.Context) error {
 
 	iconHashCache.Forget(userID)
 
-	return c.JSON(http.StatusCreated, &PostIconResponse{
+	return cJSON(c, http.StatusCreated, &PostIconResponse{
 		ID: iconID,
 	})
 }
@@ -267,7 +267,7 @@ func getMeHandler(c echo.Context) error {
 	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	//}
 
-	return c.JSON(http.StatusOK, user)
+	return cJSON(c, http.StatusOK, user)
 }
 
 // ユーザ登録API
@@ -351,7 +351,7 @@ func registerHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill user: "+err.Error())
 	}
 
-	return c.JSON(http.StatusCreated, user)
+	return cJSON(c, http.StatusCreated, user)
 }
 
 type PdnsutilInfo struct {
@@ -489,7 +489,7 @@ func getUserHandler(c echo.Context) error {
 	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	//}
 
-	return c.JSON(http.StatusOK, user)
+	return cJSON(c, http.StatusOK, user)
 }
 
 func verifyUserSession(c echo.Context) error {

@@ -47,7 +47,7 @@ func getTagHandler(c echo.Context) error {
 			Name: tagModels[i].Name,
 		}
 	}
-	return c.JSON(http.StatusOK, &TagsResponse{
+	return cJSON(c, http.StatusOK, &TagsResponse{
 		Tags: tags,
 	})
 }
@@ -101,5 +101,5 @@ func getStreamerThemeHandler(c echo.Context) error {
 		DarkMode: themeModel.DarkMode,
 	}
 
-	return c.JSON(http.StatusOK, theme)
+	return cJSON(c, http.StatusOK, theme)
 }
