@@ -337,10 +337,10 @@ func registerHandler(c echo.Context) error {
 
 	var dnsServerIP = os.Getenv("DNS_SERVER_IP")
 	res, err := http.Post(fmt.Sprintf("http://%s:8080/api/register/pdnsutil", dnsServerIP), "application/json", payload)
-	defer res.Body.Close()
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to request to exec pdnsutil: "+err.Error())
 	}
+	defer res.Body.Close()
 
 	//if err := tx.Commit(); err != nil {
 	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
