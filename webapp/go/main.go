@@ -116,10 +116,13 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 }
 
 func initializeHandler(c echo.Context) error {
+	fmt.Println("start initialize")
+
 	var wg sync.WaitGroup
 	if os.Getenv("SERVER_ID") == "s3" {
 		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			var dnsServerIP = os.Getenv("DNS_SERVER_IP")
 			res, err := http.Post(fmt.Sprintf("http://%s:8080/initialize", dnsServerIP), "application/json", bytes.NewBuffer([]byte{}))
 			if err != nil {
@@ -127,7 +130,6 @@ func initializeHandler(c echo.Context) error {
 				return
 			}
 			defer res.Body.Close()
-			defer wg.Done()
 		}()
 	}
 
