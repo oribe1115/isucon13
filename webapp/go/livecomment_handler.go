@@ -30,12 +30,12 @@ type LivecommentModel struct {
 }
 
 type Livecomment struct {
-	ID         int64      `json:"id"`
-	User       User       `json:"user"`
-	Livestream Livestream `json:"livestream"`
-	Comment    string     `json:"comment"`
-	Tip        int64      `json:"tip"`
-	CreatedAt  int64      `json:"created_at"`
+	ID         int64      `db:"livecomment.id" json:"id"`
+	User       User       `db:"user" json:"user"`
+	Livestream Livestream `db:"livestream" json:"livestream"`
+	Comment    string     `db:"livecomment.comment" json:"comment"`
+	Tip        int64      `db:"livecomment.tip" json:"tip"`
+	CreatedAt  int64      `db:"livecomment.created_at" json:"created_at"`
 }
 
 type LivecommentReport struct {
@@ -84,7 +84,30 @@ func getLivecommentsHandler(c echo.Context) error {
 	}
 	defer tx.Rollback()
 
-	query := "SELECT * FROM livecomments WHERE livestream_id = ? ORDER BY created_at DESC"
+	query := `
+	SELECT
+	  livecomments.id, livecomment.comment, livecomment.tip, livecomment.created_at
+	  user.id, user.name, user.display_name, user.description,
+	  usertheme.id AS user.theme.id, usertheme.dark_mode AS user.theme.dark_mode,
+	  usericons.image_hash AS user.icon_hash,
+	  livestream.id, livestream.title, livestream.description, livestream.playlist_url, livestream.thumbnail_url, livestream.start_at, livestream.end_at,
+
+	  livestreamowner.id AS livestream.owner.id, livestreamowner.name AS livestream.owner.name, livestreamowner.display_name AS livestream.owner.display_name, livestreamowner.description AS livestream.owner.description,
+	  livestreamownertheme.id AS livestream.owner.theme.id, livestreamownertheme.dark_mode AS livestream.owner.theme.dark_mode
+	  livestreamownericons.image_hash AS livestream.owner.icon_hash,
+
+	  FROM livecomments
+	LEFT JOIN users AS user ON user.id = livecomments.user_id
+	LEFT JOIN themes AS usertheme ON usertheme.user_id  = livecomments.user_id
+	LEFT JOIN icons AS usericons ON usericons.user_id  = livecomments.user_id
+	LEFT JOIN livestreams AS livestream ON livestream.id  = livecomments.livestream_id
+	LEFT JOIN users AS livestreamowner ON livestreamowner.id  = livestream.user_id
+	LEFT JOIN themes AS livestreamownertheme ON livestreamownertheme.user_id  = livestream.user_id
+	LEFT JOIN icons AS livestreamownericons ON livestreamownericons.user_id  = livestream.user_id
+	WHERE livecomments.livestream_id = ?
+	ORDER BY livecomments.created_at DESC
+	`
+	// livestream.tags
 	if c.QueryParam("limit") != "" {
 		limit, err := strconv.Atoi(c.QueryParam("limit"))
 		if err != nil {
@@ -93,8 +116,8 @@ func getLivecommentsHandler(c echo.Context) error {
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
 
-	livecommentModels := []LivecommentModel{}
-	err = tx.SelectContext(ctx, &livecommentModels, query, livestreamID)
+	livecomments := []Livecomment{}
+	err = tx.SelectContext(ctx, &livecomments, query, livestreamID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c.JSON(http.StatusOK, []*Livecomment{})
 	}
@@ -102,14 +125,12 @@ func getLivecommentsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livecomments: "+err.Error())
 	}
 
-	livecomments := make([]Livecomment, len(livecommentModels))
-	for i := range livecommentModels {
-		livecomment, err := fillLivecommentResponse(ctx, tx, livecommentModels[i])
+	for i := range livecomments {
+		// livestream.tags
+		livecomments[i].Livestream.Tags, err = getLivestreamTags(ctx, tx, livecomments[i].Livestream.ID)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fil livecomments: "+err.Error())
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to getLivestreamTags: "+err.Error())
 		}
-
-		livecomments[i] = livecomment
 	}
 
 	if err := tx.Commit(); err != nil {
