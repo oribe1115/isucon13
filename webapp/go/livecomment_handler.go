@@ -32,7 +32,7 @@ type LivecommentModel struct {
 type Livecomment struct {
 	ID         int64      `db:"livecomment.id" json:"id"`
 	User       User       `db:"user" json:"user"`
-	Livestream Livestream `db:"livestream" json:"livestream"`
+	Livestream Livestream `json:"livestream"`
 	Comment    string     `db:"livecomment.comment" json:"comment"`
 	Tip        int64      `db:"livecomment.tip" json:"tip"`
 	CreatedAt  int64      `db:"livecomment.created_at" json:"created_at"`
@@ -90,24 +90,13 @@ func getLivecommentsHandler(c echo.Context) error {
 	  user.id, user.name, user.display_name, user.description,
 	  usertheme.id AS user.theme.id, usertheme.dark_mode AS user.theme.dark_mode,
 	  usericons.image_hash AS user.icon_hash,
-	  livestream.id, livestream.title, livestream.description, livestream.playlist_url, livestream.thumbnail_url, livestream.start_at, livestream.end_at,
-
-	  livestreamowner.id AS livestream.owner.id, livestreamowner.name AS livestream.owner.name, livestreamowner.display_name AS livestream.owner.display_name, livestreamowner.description AS livestream.owner.description,
-	  livestreamownertheme.id AS livestream.owner.theme.id, livestreamownertheme.dark_mode AS livestream.owner.theme.dark_mode
-	  livestreamownericons.image_hash AS livestream.owner.icon_hash,
-
 	  FROM livecomments
 	LEFT JOIN users AS user ON user.id = livecomments.user_id
 	LEFT JOIN themes AS usertheme ON usertheme.user_id  = livecomments.user_id
 	LEFT JOIN icons AS usericons ON usericons.user_id  = livecomments.user_id
-	LEFT JOIN livestreams AS livestream ON livestream.id  = livecomments.livestream_id
-	LEFT JOIN users AS livestreamowner ON livestreamowner.id  = livestream.user_id
-	LEFT JOIN themes AS livestreamownertheme ON livestreamownertheme.user_id  = livestream.user_id
-	LEFT JOIN icons AS livestreamownericons ON livestreamownericons.user_id  = livestream.user_id
 	WHERE livecomments.livestream_id = ?
 	ORDER BY livecomments.created_at DESC
 	`
-	// livestream.tags
 	if c.QueryParam("limit") != "" {
 		limit, err := strconv.Atoi(c.QueryParam("limit"))
 		if err != nil {
@@ -115,7 +104,6 @@ func getLivecommentsHandler(c echo.Context) error {
 		}
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
-
 	livecomments := []Livecomment{}
 	err = tx.SelectContext(ctx, &livecomments, query, livestreamID)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -125,12 +113,37 @@ func getLivecommentsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livecomments: "+err.Error())
 	}
 
+	//livestream
+	queryLivestream := `
+	SELECT
+	  livestream.id AS id, livestream.title AS title, livestream.description as description, playlist_url, thumbnail_url, start_at, end_at,
+
+	  livestreamowner.id AS owner.id, livestreamowner.name AS owner.name, livestreamowner.display_name AS owner.display_name, livestreamowner.description AS owner.description,
+	  livestreamownertheme.id AS owner.theme.id, livestreamownertheme.dark_mode AS owner.theme.dark_mode
+	  livestreamownericons.image_hash AS owner.icon_hash
+
+	  FROM livestreams AS livestream
+	LEFT JOIN users AS livestreamowner ON livestreamowner.id  = livestream.user_id
+	LEFT JOIN themes AS livestreamownertheme ON livestreamownertheme.user_id  = livestream.user_id
+	LEFT JOIN icons AS livestreamownericons ON livestreamownericons.user_id  = livestream.user_id
+	WHERE livestream.id = ?
+	`
+	var livestream Livestream
+	err = tx.GetContext(ctx, &livestream, queryLivestream, livestreamID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return c.JSON(http.StatusOK, []*Livecomment{})
+	}
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get livecomments: "+err.Error())
+	}
+	tags, err := getLivestreamTags(ctx, tx, int64(livestreamID))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to getLivestreamTags: "+err.Error())
+	}
+	livestream.Tags = tags
 	for i := range livecomments {
 		// livestream.tags
-		livecomments[i].Livestream.Tags, err = getLivestreamTags(ctx, tx, livecomments[i].Livestream.ID)
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to getLivestreamTags: "+err.Error())
-		}
+		livecomments[i].Livestream = livestream
 	}
 
 	if err := tx.Commit(); err != nil {
