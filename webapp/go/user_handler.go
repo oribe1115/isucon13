@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -9,9 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"os/exec"
-	"sync"
 	"time"
 
 	"github.com/motoki317/sc"
@@ -286,24 +283,26 @@ func registerHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "the username 'pipe' is reserved")
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		pdnsutilReq := PdnsutilInfo{
-			Name: req.Name,
-		}
-		payload := &bytes.Buffer{}
-		if err := json.NewEncoder(payload).Encode(pdnsutilReq); err != nil {
-			return
-		}
-		var dnsServerIP = os.Getenv("DNS_SERVER_IP")
-		res, err := http.Post(fmt.Sprintf("http://%s:8080/api/register/pdnsutil", dnsServerIP), "application/json", payload)
-		if err != nil {
-			return
-		}
-		defer res.Body.Close()
-	}()
+	/*
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			pdnsutilReq := PdnsutilInfo{
+				Name: req.Name,
+			}
+			payload := &bytes.Buffer{}
+			if err := json.NewEncoder(payload).Encode(pdnsutilReq); err != nil {
+				return
+			}
+			var dnsServerIP = os.Getenv("DNS_SERVER_IP")
+			res, err := http.Post(fmt.Sprintf("http://%s:8080/api/register/pdnsutil", dnsServerIP), "application/json", payload)
+			if err != nil {
+				return
+			}
+			defer res.Body.Close()
+		}()
+	*/
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcryptDefaultCost)
 	if err != nil {
@@ -356,7 +355,7 @@ func registerHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill user: "+err.Error())
 	}
 
-	wg.Wait()
+	//wg.Wait()
 	return cJSON(c, http.StatusCreated, user)
 }
 
