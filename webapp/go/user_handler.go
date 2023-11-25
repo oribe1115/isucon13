@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/motoki317/sc"
@@ -285,6 +286,25 @@ func registerHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "the username 'pipe' is reserved")
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		pdnsutilReq := PdnsutilInfo{
+			Name: req.Name,
+		}
+		payload := &bytes.Buffer{}
+		if err := json.NewEncoder(payload).Encode(pdnsutilReq); err != nil {
+			return
+		}
+		var dnsServerIP = os.Getenv("DNS_SERVER_IP")
+		res, err := http.Post(fmt.Sprintf("http://%s:8080/api/register/pdnsutil", dnsServerIP), "application/json", payload)
+		if err != nil {
+			return
+		}
+		defer res.Body.Close()
+	}()
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcryptDefaultCost)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to generate hashed password: "+err.Error())
@@ -327,21 +347,6 @@ func registerHandler(c echo.Context) error {
 	// 	return echo.NewHTTPError(http.StatusInternalServerError, string(out)+": "+err.Error())
 	// }
 
-	pdnsutilReq := PdnsutilInfo{
-		Name: req.Name,
-	}
-	payload := &bytes.Buffer{}
-	if err := json.NewEncoder(payload).Encode(pdnsutilReq); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to encode PdnsutilInfo: "+err.Error())
-	}
-
-	var dnsServerIP = os.Getenv("DNS_SERVER_IP")
-	res, err := http.Post(fmt.Sprintf("http://%s:8080/api/register/pdnsutil", dnsServerIP), "application/json", payload)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to request to exec pdnsutil: "+err.Error())
-	}
-	defer res.Body.Close()
-
 	//if err := tx.Commit(); err != nil {
 	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	//}
@@ -351,6 +356,7 @@ func registerHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill user: "+err.Error())
 	}
 
+	wg.Wait()
 	return c.JSON(http.StatusCreated, user)
 }
 
