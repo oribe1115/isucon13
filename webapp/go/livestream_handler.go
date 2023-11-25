@@ -160,16 +160,16 @@ func reserveLivestreamHandler(c echo.Context) error {
 		}
 	}
 
-	livestream, err := fillLivestreamResponse(ctx, *livestreamModel)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill livestream: "+err.Error())
-	}
-
 	if err := tx.Commit(); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	}
 
-	livestreamTagsCache.Forget(livestream.ID)
+	livestreamTagsCache.Forget(livestreamID)
+
+	livestream, err := fillLivestreamResponse(ctx, *livestreamModel)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill livestream: "+err.Error())
+	}
 
 	return c.JSON(http.StatusCreated, livestream)
 }
