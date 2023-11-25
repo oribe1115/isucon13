@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo-contrib/session"
 	"github.com/labstack/echo/v4"
 )
@@ -46,11 +45,11 @@ func getReactionsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "livestream_id in path must be integer")
 	}
 
-	tx, err := dbConn.BeginTxx(ctx, nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
-	}
-	defer tx.Rollback()
+	//tx, err := dbConn.BeginTxx(ctx, nil)
+	//if err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
+	//}
+	//defer tx.Rollback()
 
 	query := "SELECT * FROM reactions WHERE livestream_id = ? ORDER BY created_at DESC"
 	if c.QueryParam("limit") != "" {
@@ -62,26 +61,26 @@ func getReactionsHandler(c echo.Context) error {
 	}
 
 	reactionModels := []ReactionModel{}
-	if err := tx.SelectContext(ctx, &reactionModels, query, livestreamID); err != nil {
+	if err := dbConn.SelectContext(ctx, &reactionModels, query, livestreamID); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "failed to get reactions")
 	}
-	livestream, err := filledLivestreamResponse(ctx, tx, int64(livestreamID))
+	livestream, err := filledLivestreamResponse(ctx, int64(livestreamID))
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "failed to get filledLivestreamResponse")
 	}
 
 	reactions := make([]Reaction, len(reactionModels))
 	for i := range reactionModels {
-		reaction, err := fillReactionResponseImpl(ctx, tx, reactionModels[i], &livestream)
+		reaction, err := fillReactionResponseImpl(ctx, reactionModels[i], &livestream)
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill reaction: "+err.Error())
 		}
 		reactions[i] = reaction
 	}
 
-	if err := tx.Commit(); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
-	}
+	//if err := tx.Commit(); err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
+	//}
 
 	return c.JSON(http.StatusOK, reactions)
 }
@@ -108,11 +107,11 @@ func postReactionHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "failed to decode the request body as json")
 	}
 
-	tx, err := dbConn.BeginTxx(ctx, nil)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
-	}
-	defer tx.Rollback()
+	//tx, err := dbConn.BeginTxx(ctx, nil)
+	//if err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to begin transaction: "+err.Error())
+	//}
+	//defer tx.Rollback()
 
 	reactionModel := ReactionModel{
 		UserID:       int64(userID),
@@ -121,7 +120,7 @@ func postReactionHandler(c echo.Context) error {
 		CreatedAt:    time.Now().Unix(),
 	}
 
-	result, err := tx.NamedExecContext(ctx, "INSERT INTO reactions (user_id, livestream_id, emoji_name, created_at) VALUES (:user_id, :livestream_id, :emoji_name, :created_at)", reactionModel)
+	result, err := dbConn.NamedExecContext(ctx, "INSERT INTO reactions (user_id, livestream_id, emoji_name, created_at) VALUES (:user_id, :livestream_id, :emoji_name, :created_at)", reactionModel)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to insert reaction: "+err.Error())
 	}
@@ -132,22 +131,23 @@ func postReactionHandler(c echo.Context) error {
 	}
 	reactionModel.ID = reactionID
 
-	reaction, err := fillReactionResponse(ctx, tx, reactionModel)
+	reaction, err := fillReactionResponse(ctx, reactionModel)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill reaction: "+err.Error())
 	}
 
-	if err := tx.Commit(); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
-	}
+	//if err := tx.Commit(); err != nil {
+	//	return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
+	//}
 
 	return c.JSON(http.StatusCreated, reaction)
 }
 
-func fillReactionResponse(ctx context.Context, tx *sqlx.Tx, reactionModel ReactionModel) (Reaction, error) {
-	return fillReactionResponseImpl(ctx, tx, reactionModel, nil)
+func fillReactionResponse(ctx context.Context, reactionModel ReactionModel) (Reaction, error) {
+	return fillReactionResponseImpl(ctx, reactionModel, nil)
 }
-func fillReactionResponseImpl(ctx context.Context, tx *sqlx.Tx, reactionModel ReactionModel, livestreamDefault *Livestream) (Reaction, error) {
+
+func fillReactionResponseImpl(ctx context.Context, reactionModel ReactionModel, livestreamDefault *Livestream) (Reaction, error) {
 	userModel, err := userCache.Get(ctx, reactionModel.UserID)
 	if err != nil {
 		return Reaction{}, err
@@ -165,7 +165,7 @@ func fillReactionResponseImpl(ctx context.Context, tx *sqlx.Tx, reactionModel Re
 	if livestreamDefault != nil {
 		livestream = *livestreamDefault
 	} else {
-		livestream, err = filledLivestreamResponse(ctx, tx, reactionModel.LivestreamID)
+		livestream, err = filledLivestreamResponse(ctx, reactionModel.LivestreamID)
 		if err != nil {
 			return Reaction{}, err
 		}
