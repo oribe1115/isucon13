@@ -18,6 +18,7 @@ matching_groups:            # array
   - ^/api/livestream/[0-9]+/report
   - ^/api/livestream/[0-9]+/ngwords
   - ^/api/livestream/[0-9]+/livecomment/[0-9]+/report
+  - ^/api/livestream/[0-9]+/moderate
   - ^/api/livestream/[0-9]+/enter
   - ^/api/livestream/[0-9]+/exit
   - ^/api/register$
