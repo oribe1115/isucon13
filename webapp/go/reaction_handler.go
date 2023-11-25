@@ -65,15 +65,21 @@ func getReactionsHandler(c echo.Context) error {
 	if err := tx.SelectContext(ctx, &reactionModels, query, livestreamID); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "failed to get reactions")
 	}
+	livestream, err := filledLivestreamResponse(ctx, tx, int64(livestreamID))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "failed to get filledLivestreamResponse")
+	}
 
 	reactions := make([]Reaction, len(reactionModels))
 	for i := range reactionModels {
-		reaction, err := fillReactionResponse(ctx, tx, reactionModels[i])
-		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill reaction: "+err.Error())
-		}
+		// reaction, err := fillReactionResponse(ctx, tx, reactionModels[i])
+		// if err != nil {
+		// 	return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill reaction: "+err.Error())
+		// }
 
-		reactions[i] = reaction
+		// reactions[i] = reaction
+		user
+		reactions[i].Livestream = livestream
 	}
 
 	if err := tx.Commit(); err != nil {
