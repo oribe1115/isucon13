@@ -137,7 +137,11 @@ func initializeHandler(c echo.Context) error {
 	*tmpTime = time.Now()
 	benchstart.Store(tmpTime)
 
-	if out, err := exec.Command("../sql/init.sh").CombinedOutput(); err != nil {
+	if out, err := exec.Command("../sql/initdns.sh").CombinedOutput(); err != nil {
+		c.Logger().Warnf("init.sh failed with err=%s", string(out))
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
+	}
+	if out, err := exec.Command("../sql/initdb.sh").CombinedOutput(); err != nil {
 		c.Logger().Warnf("init.sh failed with err=%s", string(out))
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
 	}
