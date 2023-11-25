@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/motoki317/sc"
 	"net/http"
 	"strconv"
 	"time"
@@ -167,6 +168,8 @@ func reserveLivestreamHandler(c echo.Context) error {
 	if err := tx.Commit(); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	}
+
+	livestreamTagsCache.Forget(livestream.ID)
 
 	return c.JSON(http.StatusCreated, livestream)
 }
@@ -493,7 +496,10 @@ func getLivecommentReportsHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, reports)
 }
 
-func getLivestreamTags(ctx context.Context, livestream_id int64) ([]Tag, error) {
+var livestreamTagsCache = sc.NewMust(_getLivestreamTags, 90*time.Second, 90*time.Second)
+var getLivestreamTags = livestreamTagsCache.Get
+
+func _getLivestreamTags(ctx context.Context, livestream_id int64) ([]Tag, error) {
 	/*
 		var livestreamTagModels []*LivestreamTagModel
 		if err := tx.SelectContext(ctx, &livestreamTagModels, "SELECT * FROM livestream_tags WHERE livestream_id = ?", livestreamModel.ID); err != nil {
