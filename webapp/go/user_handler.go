@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/motoki317/sc"
 	"net/http"
 	"os/exec"
 	"time"
@@ -18,6 +19,20 @@ import (
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func getIconHash(ctx context.Context, userID int64) (string, error) {
+	var hash string
+	err := dbConn.GetContext(ctx, &hash, "SELECT image_hash FROM icons WHERE user_id = ?", userID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return "", err
+		}
+		return fallbackImageHash, nil
+	}
+	return hash, nil
+}
+
+var iconHashCache = sc.NewMust(getIconHash, 90*time.Second, 90*time.Second)
 
 const (
 	defaultSessionIDKey      = "SESSIONID"
@@ -103,6 +118,14 @@ func getIconHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get user: "+err.Error())
 	}
 
+	ifNoneMatch := c.Request().Header.Get("If-None-Match")
+	iconHash, err := iconHashCache.Get(ctx, user.ID)
+	if err == nil { // ignore error
+		if iconHash == ifNoneMatch || `"`+iconHash+`"` == ifNoneMatch {
+			return c.NoContent(http.StatusNotModified)
+		}
+	}
+
 	var image []byte
 	if err := tx.GetContext(ctx, &image, "SELECT image FROM icons WHERE user_id = ?", user.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -158,6 +181,8 @@ func postIconHandler(c echo.Context) error {
 	if err := tx.Commit(); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to commit: "+err.Error())
 	}
+
+	iconHashCache.Forget(userID)
 
 	return c.JSON(http.StatusCreated, &PostIconResponse{
 		ID: iconID,
@@ -399,7 +424,7 @@ func verifyUserSession(c echo.Context) error {
 	return nil
 }
 
-var fallbackImageHash [32]byte
+var fallbackImageHash string
 
 func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (User, error) {
 	themeModel := ThemeModel{}
@@ -407,13 +432,19 @@ func fillUserResponse(ctx context.Context, tx *sqlx.Tx, userModel UserModel) (Us
 		return User{}, err
 	}
 
-	var iconHash string
-	if err := tx.GetContext(ctx, &iconHash, "SELECT image_hash FROM icons WHERE user_id = ?", userModel.ID); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return User{}, err
-		}
-		iconHash = fmt.Sprintf("%x", fallbackImageHash)
+	iconHash, err := iconHashCache.Get(ctx, userModel.ID)
+	if err != nil {
+		return User{}, err
 	}
+	/*
+		var iconHash string
+		if err := tx.GetContext(ctx, &iconHash, "SELECT image_hash FROM icons WHERE user_id = ?", userModel.ID); err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return User{}, err
+			}
+			iconHash = fallbackImageHash
+		}
+	*/
 
 	user := User{
 		ID:          userModel.ID,
