@@ -76,6 +76,7 @@ func getReactionsHandler(c echo.Context) error {
 		if err != nil {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to fill reaction: "+err.Error())
 		}
+		reactions[i] = reaction
 	}
 
 	if err := tx.Commit(); err != nil {
