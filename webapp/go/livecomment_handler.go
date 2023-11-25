@@ -89,7 +89,7 @@ func getLivecommentsHandler(c echo.Context) error {
 	  livecomments.id, livecomments.comment, livecomments.tip, livecomments.created_at,
 	  user.id AS 'user.id', user.name AS 'user.name', user.display_name AS 'user.display_name', user.description AS 'user.description',
 	  usertheme.id AS 'user.theme.id', usertheme.dark_mode AS 'user.theme.dark_mode',
-	  usericons.image_hash AS 'user.icon_hash'
+	  IFNULL(usericons.image_hash, "") AS 'user.icon_hash'
 	  FROM livecomments
 	LEFT JOIN users AS user ON user.id = livecomments.user_id
 	LEFT JOIN themes AS usertheme ON usertheme.user_id  = livecomments.user_id
@@ -120,7 +120,7 @@ func getLivecommentsHandler(c echo.Context) error {
 
 	  livestreamowner.id AS 'owner.id', livestreamowner.name AS 'owner.name', livestreamowner.display_name AS 'owner.display_name', livestreamowner.description AS 'owner.description',
 	  livestreamownertheme.id AS 'owner.theme.id', livestreamownertheme.dark_mode AS 'owner.theme.dark_mode',
-	  livestreamownericons.image_hash AS 'owner.icon_hash'
+	  IFNULL(livestreamownericons.image_hash, "") AS 'owner.icon_hash'
 
 	  FROM livestreams AS livestream
 	LEFT JOIN users AS livestreamowner ON livestreamowner.id  = livestream.user_id
@@ -141,8 +141,13 @@ func getLivecommentsHandler(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to getLivestreamTags: "+err.Error())
 	}
 	livestream.Tags = tags
+	if livestream.Owner.IconHash == "" {
+		livestream.Owner.IconHash = fmt.Sprintf("%x", fallbackImageHash)
+	}
 	for i := range livecomments {
-		// livestream.tags
+		if livecomments[i].User.IconHash == "" {
+			livecomments[i].User.IconHash = fmt.Sprintf("%x", fallbackImageHash)
+		}
 		livecomments[i].Livestream = livestream
 	}
 
