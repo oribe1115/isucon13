@@ -5,7 +5,7 @@ CREATE DATABASE IF NOT EXISTS `isupipe`;
 -- CREATE USER IF NOT EXISTS 'isucon'@'%' IDENTIFIED BY 'isucon';
 -- GRANT ALL PRIVILEGES ON isupipe.* TO 'isucon'@'%';
 
-CREATE DATABASE IF NOT EXISTS `isudns`;
+-- CREATE DATABASE IF NOT EXISTS `isudns`;
 
 -- DROP USER IF EXISTS `isudns`@`%`;
 -- CREATE USER IF NOT EXISTS 'isudns'@'%' IDENTIFIED BY 'isudns';
