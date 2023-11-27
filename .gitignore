@@ -29,3 +29,6 @@ webapp/php/vendor
 webapp/go/isupipe
 webapp/perl/local
 webapp/rust/target
+
+webapp/pdns/u.isucon.dev.zone.materialized
+s1/etc/powerdns/sqlite.db
